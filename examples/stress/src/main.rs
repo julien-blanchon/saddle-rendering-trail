@@ -12,9 +12,12 @@ struct StressMover {
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins((common::default_plugins("trail stress"), TrailPlugin::default()))
-        .add_systems(Startup, setup)
-        .add_systems(Update, (animate, log_diagnostics));
+    app.add_plugins((
+        common::default_plugins("trail stress"),
+        TrailPlugin::default(),
+    ))
+    .add_systems(Startup, setup)
+    .add_systems(Update, (animate, log_diagnostics));
     common::install_auto_exit(&mut app);
     app.run();
 }

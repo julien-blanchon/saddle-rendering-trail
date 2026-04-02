@@ -136,7 +136,10 @@ impl Plugin for TrailPlugin {
             ),
         );
 
-        if app.world().contains_resource::<bevy::prelude::GizmoConfigStore>() {
+        if app
+            .world()
+            .contains_resource::<bevy::prelude::GizmoConfigStore>()
+        {
             app.add_systems(
                 self.update_schedule,
                 debug::draw_debug

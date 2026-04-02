@@ -1,10 +1,6 @@
 use bevy::{
-    camera::visibility::NoFrustumCulling,
-    color::LinearRgba,
-    pbr::StandardMaterial,
-    prelude::*,
-    reflect::Reflect,
-    render::render_resource::Face,
+    camera::visibility::NoFrustumCulling, color::LinearRgba, pbr::StandardMaterial, prelude::*,
+    reflect::Reflect, render::render_resource::Face,
 };
 
 #[derive(Component, Clone, Debug, Reflect, PartialEq)]
@@ -223,14 +219,18 @@ pub enum TrailSpace {
 pub enum TrailOrientation {
     #[default]
     Billboard,
-    TransformLocked { axis: Vec3 },
+    TransformLocked {
+        axis: Vec3,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, Reflect, PartialEq)]
 pub enum TrailUvMode {
     #[default]
     Stretch,
-    RepeatByDistance { distance: f32 },
+    RepeatByDistance {
+        distance: f32,
+    },
 }
 
 #[derive(Clone, Debug, Default, Reflect, PartialEq)]
@@ -313,7 +313,10 @@ impl TrailGradient {
 
     #[must_use]
     pub fn constant(color: Color) -> Self {
-        Self::new([TrailColorKey::new(0.0, color), TrailColorKey::new(1.0, color)])
+        Self::new([
+            TrailColorKey::new(0.0, color),
+            TrailColorKey::new(1.0, color),
+        ])
     }
 
     #[must_use]
@@ -416,5 +419,7 @@ pub(crate) struct TrailRenderInstance {
 pub(crate) struct TrailRenderTag;
 
 pub(crate) fn maybe_disable_frustum_culling(material: &TrailMaterial) -> Option<NoFrustumCulling> {
-    material.disable_frustum_culling.then(NoFrustumCulling::default)
+    material
+        .disable_frustum_culling
+        .then(NoFrustumCulling::default)
 }

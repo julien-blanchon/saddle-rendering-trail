@@ -2,7 +2,9 @@ use bevy::prelude::*;
 
 use crate::{
     Trail, TrailEmitterMode,
-    sampling::{EmitResult, TrailBuffer, normalized_lengths, should_emit_sample, should_reset, total_length},
+    sampling::{
+        EmitResult, TrailBuffer, normalized_lengths, should_emit_sample, should_reset, total_length,
+    },
 };
 
 #[test]
@@ -14,7 +16,10 @@ fn min_distance_suppresses_redundant_samples() {
     };
 
     let mut buffer = TrailBuffer::default();
-    assert_eq!(buffer.maybe_emit(&trail, Vec3::ZERO, Quat::IDENTITY), EmitResult::Appended);
+    assert_eq!(
+        buffer.maybe_emit(&trail, Vec3::ZERO, Quat::IDENTITY),
+        EmitResult::Appended
+    );
     assert_eq!(
         buffer.maybe_emit(&trail, Vec3::new(0.1, 0.0, 0.0), Quat::IDENTITY),
         EmitResult::Ignored
@@ -49,7 +54,10 @@ fn teleport_reset_clears_previous_history() {
         ..default()
     };
     let mut buffer = TrailBuffer::default();
-    assert_eq!(buffer.maybe_emit(&trail, Vec3::ZERO, Quat::IDENTITY), EmitResult::Appended);
+    assert_eq!(
+        buffer.maybe_emit(&trail, Vec3::ZERO, Quat::IDENTITY),
+        EmitResult::Appended
+    );
     assert_eq!(
         buffer.maybe_emit(&trail, Vec3::new(3.0, 0.0, 0.0), Quat::IDENTITY),
         EmitResult::ResetAndAppended

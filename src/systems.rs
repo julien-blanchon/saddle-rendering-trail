@@ -1,12 +1,10 @@
-use bevy::{
-    camera::primitives::Aabb,
-    camera::visibility::NoFrustumCulling,
-    prelude::*,
-};
+use bevy::{camera::primitives::Aabb, camera::visibility::NoFrustumCulling, prelude::*};
 
 use crate::{
     Trail, TrailDiagnostics, TrailRuntimeState, TrailSpace, TrailViewState,
-    components::{TrailRenderInstance, TrailRenderTag, TrailSourceLink, maybe_disable_frustum_culling},
+    components::{
+        TrailRenderInstance, TrailRenderTag, TrailSourceLink, maybe_disable_frustum_culling,
+    },
     mesh_builder::{apply_buffers, build_mesh, camera_position_for_space},
     sampling::EmitResult,
 };
@@ -80,9 +78,9 @@ pub(crate) fn refresh_view_state(
                 || previous
                     .camera_position
                     .is_none_or(|position| position.distance(current_position) > 0.0001)
-                || previous.camera_rotation.is_none_or(|rotation| {
-                    rotation.dot(current_rotation).abs() < 0.999_999
-                }),
+                || previous
+                    .camera_rotation
+                    .is_none_or(|rotation| rotation.dot(current_rotation).abs() < 0.999_999),
         };
     } else {
         *view_state = TrailViewState {
@@ -101,7 +99,8 @@ pub(crate) fn spawn_missing_instances(
     for (source, trail, name) in &sources {
         let mesh = meshes.add(Mesh::new(
             bevy::render::render_resource::PrimitiveTopology::TriangleList,
-            bevy::asset::RenderAssetUsages::MAIN_WORLD | bevy::asset::RenderAssetUsages::RENDER_WORLD,
+            bevy::asset::RenderAssetUsages::MAIN_WORLD
+                | bevy::asset::RenderAssetUsages::RENDER_WORLD,
         ));
         let material = materials.add(trail.style.material.to_standard_material());
         let render_name = name
@@ -130,7 +129,9 @@ pub(crate) fn spawn_missing_instances(
             entity_commands.insert(no_cull);
         }
         let render_entity = entity_commands.id();
-        commands.entity(source).insert(TrailSourceLink { render_entity });
+        commands
+            .entity(source)
+            .insert(TrailSourceLink { render_entity });
     }
 }
 
@@ -159,7 +160,10 @@ pub(crate) fn sync_sources_and_sample(
         let config_changed = instance.config != *trail;
         let no_cull_changed = instance.config.style.material.disable_frustum_culling
             != trail.style.material.disable_frustum_culling;
-        let history_changed = instance.history.advance(delta_secs, trail.lifetime_secs, trail.max_points);
+        let history_changed =
+            instance
+                .history
+                .advance(delta_secs, trail.lifetime_secs, trail.max_points);
         let age_animation_dirty =
             trail.style.animates_alpha_over_age() && !instance.history.points.is_empty();
 
@@ -206,7 +210,8 @@ pub(crate) fn sync_sources_and_sample(
             || history_changed
             || age_animation_dirty
             || emit_result != EmitResult::Ignored
-            || matches!(trail.orientation, crate::TrailOrientation::Billboard) && view_state.changed;
+            || matches!(trail.orientation, crate::TrailOrientation::Billboard)
+                && view_state.changed;
     }
 }
 
@@ -228,16 +233,17 @@ pub(crate) fn tick_orphaned_instances(
 
         let lifetime_secs = instance.config.lifetime_secs;
         let max_points = instance.config.max_points;
-        let is_billboard = matches!(instance.config.orientation, crate::TrailOrientation::Billboard);
+        let is_billboard = matches!(
+            instance.config.orientation,
+            crate::TrailOrientation::Billboard
+        );
         let age_animation_dirty =
             instance.config.style.animates_alpha_over_age() && !instance.history.points.is_empty();
         let changed = instance
             .history
             .advance(delta_secs, lifetime_secs, max_points);
-        instance.dirty = instance.dirty
-            || changed
-            || age_animation_dirty
-            || is_billboard && view_state.changed;
+        instance.dirty =
+            instance.dirty || changed || age_animation_dirty || is_billboard && view_state.changed;
     }
 }
 
@@ -352,7 +358,10 @@ pub(crate) fn publish_diagnostics(
     diagnostics.runtime_active = runtime.active;
     diagnostics.active_sources = sources.iter().count();
     diagnostics.active_render_entities = instances.iter().count();
-    diagnostics.orphaned_render_entities = instances.iter().filter(|(instance, _)| instance.source_missing).count();
+    diagnostics.orphaned_render_entities = instances
+        .iter()
+        .filter(|(instance, _)| instance.source_missing)
+        .count();
     diagnostics.active_points = instances
         .iter()
         .map(|(instance, _)| instance.history.points.len())
@@ -361,7 +370,10 @@ pub(crate) fn publish_diagnostics(
         .iter()
         .filter(|(_, visibility)| matches!(visibility, Visibility::Visible | Visibility::Inherited))
         .count();
-    diagnostics.dirty_trails = instances.iter().filter(|(instance, _)| instance.dirty).count();
+    diagnostics.dirty_trails = instances
+        .iter()
+        .filter(|(instance, _)| instance.dirty)
+        .count();
     diagnostics.total_mesh_rebuilds = runtime.total_mesh_rebuilds;
     diagnostics.total_resets = runtime.total_resets;
 }

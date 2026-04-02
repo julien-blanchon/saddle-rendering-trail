@@ -100,7 +100,10 @@ struct AutoExitAfter(Timer);
 fn main() {
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb(0.02, 0.03, 0.05)))
-        .add_plugins((common::default_plugins("trail crate-local lab"), TrailPlugin::default()))
+        .add_plugins((
+            common::default_plugins("trail crate-local lab"),
+            TrailPlugin::default(),
+        ))
         .configure_sets(
             Update,
             (
@@ -353,7 +356,11 @@ fn animate_locked(
 ) {
     for (motion, mut transform) in &mut movers {
         let t = time.elapsed_secs() * motion.speed;
-        transform.translation = Vec3::new(t.cos() * motion.radius, 1.6 + (t * 1.7).sin() * 0.4, t.sin() * motion.radius);
+        transform.translation = Vec3::new(
+            t.cos() * motion.radius,
+            1.6 + (t * 1.7).sin() * 0.4,
+            t.sin() * motion.radius,
+        );
         transform.rotation = Quat::from_rotation_z(t * 2.4) * Quat::from_rotation_y(-t * 1.2);
     }
 }

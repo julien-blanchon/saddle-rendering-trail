@@ -8,9 +8,12 @@ struct Blade;
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins((common::default_plugins("trail melee swipe"), TrailPlugin::default()))
-        .add_systems(Startup, setup)
-        .add_systems(Update, animate);
+    app.add_plugins((
+        common::default_plugins("trail melee swipe"),
+        TrailPlugin::default(),
+    ))
+    .add_systems(Startup, setup)
+    .add_systems(Update, animate);
     common::install_auto_exit(&mut app);
     app.run();
 }
@@ -41,7 +44,10 @@ fn setup(
                     saddle_rendering_trail::TrailScalarKey::new(1.0, 1.15),
                 ]),
                 color_over_length: saddle_rendering_trail::TrailGradient::new([
-                    saddle_rendering_trail::TrailColorKey::new(0.0, Color::srgba(0.1, 0.6, 1.0, 0.0)),
+                    saddle_rendering_trail::TrailColorKey::new(
+                        0.0,
+                        Color::srgba(0.1, 0.6, 1.0, 0.0),
+                    ),
                     saddle_rendering_trail::TrailColorKey::new(0.45, Color::srgb(0.4, 0.9, 1.0)),
                     saddle_rendering_trail::TrailColorKey::new(1.0, Color::srgb(1.0, 1.0, 1.0)),
                 ]),
@@ -61,7 +67,11 @@ fn animate(time: Res<Time>, mut movers: Query<&mut Transform, With<Blade>>) {
         let t = time.elapsed_secs();
         let radius = 2.4;
         let angle = (t * 2.5).sin() * 1.2;
-        transform.translation = Vec3::new(angle.cos() * radius, 1.2 + angle.sin() * 0.5, angle.sin() * radius);
+        transform.translation = Vec3::new(
+            angle.cos() * radius,
+            1.2 + angle.sin() * 0.5,
+            angle.sin() * radius,
+        );
         transform.rotation = Quat::from_rotation_z(angle * 1.6) * Quat::from_rotation_y(-angle);
     }
 }

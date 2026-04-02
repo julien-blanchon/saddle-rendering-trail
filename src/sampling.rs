@@ -39,7 +39,8 @@ impl TrailBuffer {
         }
 
         let before = self.points.len();
-        self.points.retain(|point| point.age_secs <= lifetime_secs.max(0.0));
+        self.points
+            .retain(|point| point.age_secs <= lifetime_secs.max(0.0));
         trim_to_max_points(&mut self.points, max_points);
         before != self.points.len()
     }
@@ -87,7 +88,11 @@ impl TrailBuffer {
     }
 }
 
-pub(crate) fn should_reset(last_position: Vec3, new_position: Vec3, teleport_distance: f32) -> bool {
+pub(crate) fn should_reset(
+    last_position: Vec3,
+    new_position: Vec3,
+    teleport_distance: f32,
+) -> bool {
     teleport_distance > 0.0 && last_position.distance(new_position) >= teleport_distance
 }
 

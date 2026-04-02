@@ -1,9 +1,7 @@
 use bevy::{camera::primitives::Aabb, prelude::*};
 
 use crate::{
-    TrailDebugSettings,
-    components::TrailRenderInstance,
-    mesh_builder::build_mesh,
+    TrailDebugSettings, components::TrailRenderInstance, mesh_builder::build_mesh,
     resources::TrailDiagnostics,
 };
 
@@ -44,10 +42,8 @@ pub(crate) fn draw_debug(
                 let left = render_transform.transform_point(Vec3::from_array(segment[0]));
                 let right = render_transform.transform_point(Vec3::from_array(segment[1]));
                 let center = left.lerp(right, 0.5);
-                let normal = (right - left)
-                    .cross(Vec3::Y)
-                    .normalize_or_zero()
-                    * debug.normal_length;
+                let normal =
+                    (right - left).cross(Vec3::Y).normalize_or_zero() * debug.normal_length;
                 gizmos.line(center, center + normal, Color::srgb(1.0, 0.65, 0.28));
             }
         }

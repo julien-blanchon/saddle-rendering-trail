@@ -67,6 +67,10 @@ fn transform_locked_mode_uses_sampled_rotation_axis() {
 #[test]
 fn camera_conversion_respects_local_space_transform() {
     let transform = Transform::from_xyz(2.0, 0.0, 0.0);
-    let local = camera_position_for_space(crate::TrailSpace::Local, &transform, Vec3::new(5.0, 0.0, 0.0));
+    let local = camera_position_for_space(
+        crate::TrailSpace::Local,
+        &transform,
+        Vec3::new(5.0, 0.0, 0.0),
+    );
     assert_eq!(local, Vec3::new(3.0, 0.0, 0.0));
 }

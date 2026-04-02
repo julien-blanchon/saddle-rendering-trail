@@ -81,10 +81,18 @@ fn animate(
 ) {
     let t = time.elapsed_secs();
     for mut transform in &mut billboard {
-        transform.translation = Vec3::new(-3.0 + (t * 1.4).sin() * 1.7, 1.3 + (t * 2.0).cos() * 0.7, (t * 1.1).cos());
+        transform.translation = Vec3::new(
+            -3.0 + (t * 1.4).sin() * 1.7,
+            1.3 + (t * 2.0).cos() * 0.7,
+            (t * 1.1).cos(),
+        );
     }
     for mut transform in &mut locked {
-        transform.translation = Vec3::new(3.0 + (t * 1.4).sin() * 1.7, 1.3 + (t * 1.7).sin() * 0.7, (t * 1.2).cos());
+        transform.translation = Vec3::new(
+            3.0 + (t * 1.4).sin() * 1.7,
+            1.3 + (t * 1.7).sin() * 0.7,
+            (t * 1.2).cos(),
+        );
         transform.rotation = Quat::from_rotation_x(t * 1.7) * Quat::from_rotation_z(t * 0.9);
     }
 }

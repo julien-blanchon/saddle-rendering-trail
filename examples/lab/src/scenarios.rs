@@ -22,7 +22,12 @@ pub fn scenario_by_name(name: &str) -> Option<Scenario> {
 }
 
 pub fn list_scenarios() -> Vec<&'static str> {
-    vec!["trail_smoke", "trail_billboard", "trail_locked", "trail_reset"]
+    vec![
+        "trail_smoke",
+        "trail_billboard",
+        "trail_locked",
+        "trail_reset",
+    ]
 }
 
 fn build_smoke() -> Scenario {

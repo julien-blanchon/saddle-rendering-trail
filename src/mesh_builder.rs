@@ -54,12 +54,7 @@ pub(crate) fn build_mesh(
         if half_width <= f32::EPSILON {
             continue;
         }
-        let side = side_vector(
-            trail,
-            *point,
-            tangent,
-            camera_position_in_trail_space,
-        );
+        let side = side_vector(trail, *point, tangent, camera_position_in_trail_space);
         let normal = side.cross(tangent).normalize_or_zero();
         let left = point.position - side * half_width;
         let right = point.position + side * half_width;
@@ -75,8 +70,12 @@ pub(crate) fn build_mesh(
         buffers.normals.push(normal.to_array());
         buffers.uvs.push([u, 0.0]);
         buffers.uvs.push([u, 1.0]);
-        buffers.colors.push([color.red, color.green, color.blue, color.alpha]);
-        buffers.colors.push([color.red, color.green, color.blue, color.alpha]);
+        buffers
+            .colors
+            .push([color.red, color.green, color.blue, color.alpha]);
+        buffers
+            .colors
+            .push([color.red, color.green, color.blue, color.alpha]);
 
         mins = mins.min(left).min(right);
         maxs = maxs.max(left).max(right);
@@ -89,9 +88,14 @@ pub(crate) fn build_mesh(
     let point_count = buffers.positions.len() / 2;
     for index in 0..(point_count - 1) as u32 {
         let base = index * 2;
-        buffers
-            .indices
-            .extend_from_slice(&[base, base + 2, base + 1, base + 1, base + 2, base + 3]);
+        buffers.indices.extend_from_slice(&[
+            base,
+            base + 2,
+            base + 1,
+            base + 1,
+            base + 2,
+            base + 3,
+        ]);
     }
 
     buffers.aabb = Some(Aabb::from_min_max(mins, maxs));
@@ -140,7 +144,9 @@ fn side_vector(
             }
             projected_axis(fallback, tangent)
         }
-        TrailOrientation::TransformLocked { axis } => projected_axis(point.rotation * axis, tangent),
+        TrailOrientation::TransformLocked { axis } => {
+            projected_axis(point.rotation * axis, tangent)
+        }
     }
 }
 
@@ -160,6 +166,9 @@ pub(crate) fn camera_position_for_space(
 ) -> Vec3 {
     match trail_space {
         TrailSpace::World => camera_world_position,
-        TrailSpace::Local => render_transform.to_matrix().inverse().transform_point3(camera_world_position),
+        TrailSpace::Local => render_transform
+            .to_matrix()
+            .inverse()
+            .transform_point3(camera_world_position),
     }
 }

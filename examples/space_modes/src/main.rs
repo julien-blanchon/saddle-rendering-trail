@@ -1,7 +1,9 @@
 use saddle_rendering_trail_example_common as common;
 
 use bevy::prelude::*;
-use saddle_rendering_saddle_rendering_trail::{Trail, TrailEmitterMode, TrailPlugin, TrailScalarCurve, TrailSpace, TrailStyle};
+use saddle_rendering_saddle_rendering_trail::{
+    Trail, TrailEmitterMode, TrailPlugin, TrailScalarCurve, TrailSpace, TrailStyle,
+};
 
 #[derive(Component)]
 struct Carrier;
@@ -14,9 +16,12 @@ struct LocalSpaceEmitter;
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins((common::default_plugins("trail space modes"), TrailPlugin::default()))
-        .add_systems(Startup, setup)
-        .add_systems(Update, (animate_carrier, animate_emitters));
+    app.add_plugins((
+        common::default_plugins("trail space modes"),
+        TrailPlugin::default(),
+    ))
+    .add_systems(Startup, setup)
+    .add_systems(Update, (animate_carrier, animate_emitters));
     common::install_auto_exit(&mut app);
     app.run();
 }
@@ -100,15 +105,22 @@ fn setup(
 fn animate_carrier(time: Res<Time>, mut carriers: Query<&mut Transform, With<Carrier>>) {
     for mut transform in &mut carriers {
         let t = time.elapsed_secs() * 0.65;
-        transform.translation = Vec3::new(t.cos() * 3.2, 1.4 + (t * 1.8).sin() * 0.25, t.sin() * 1.6);
+        transform.translation =
+            Vec3::new(t.cos() * 3.2, 1.4 + (t * 1.8).sin() * 0.25, t.sin() * 1.6);
         transform.rotation = Quat::from_rotation_y(-t * 0.9);
     }
 }
 
 fn animate_emitters(
     time: Res<Time>,
-    mut world_emitters: Query<&mut Transform, (With<WorldSpaceEmitter>, Without<LocalSpaceEmitter>)>,
-    mut local_emitters: Query<&mut Transform, (With<LocalSpaceEmitter>, Without<WorldSpaceEmitter>)>,
+    mut world_emitters: Query<
+        &mut Transform,
+        (With<WorldSpaceEmitter>, Without<LocalSpaceEmitter>),
+    >,
+    mut local_emitters: Query<
+        &mut Transform,
+        (With<LocalSpaceEmitter>, Without<WorldSpaceEmitter>),
+    >,
 ) {
     let t = time.elapsed_secs() * 2.4;
 

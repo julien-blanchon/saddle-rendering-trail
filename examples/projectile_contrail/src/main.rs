@@ -1,7 +1,9 @@
 use saddle_rendering_trail_example_common as common;
 
 use bevy::prelude::*;
-use saddle_rendering_saddle_rendering_trail::{Trail, TrailEmitterMode, TrailPlugin, TrailScalarCurve, TrailStyle, TrailUvMode};
+use saddle_rendering_saddle_rendering_trail::{
+    Trail, TrailEmitterMode, TrailPlugin, TrailScalarCurve, TrailStyle, TrailUvMode,
+};
 
 #[derive(Component)]
 struct Projectile;
@@ -61,6 +63,10 @@ fn setup(
 fn animate(time: Res<Time>, mut movers: Query<&mut Transform, With<Projectile>>) {
     for mut transform in &mut movers {
         let t = time.elapsed_secs();
-        transform.translation = Vec3::new(-5.0 + (t * 4.0).rem_euclid(10.0), 1.5 + (t * 5.0).sin() * 0.3, 0.0);
+        transform.translation = Vec3::new(
+            -5.0 + (t * 4.0).rem_euclid(10.0),
+            1.5 + (t * 5.0).sin() * 0.3,
+            0.0,
+        );
     }
 }
