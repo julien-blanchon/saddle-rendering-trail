@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "common",
+    "basic",
+    "projectile_contrail",
+    "melee_swipe",
+    "orientation_modes",
+    "space_modes",
+    "stress",
+    "lab",
+]
+resolver = "3"
+
+[workspace.dependencies]
+bevy = { version = "0.18", features = ["serialize"] }
+saddle-rendering-trail = { path = ".." }
+
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+nonstandard_macro_braces = "warn"
