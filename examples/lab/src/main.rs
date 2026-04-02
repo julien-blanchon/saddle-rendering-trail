@@ -8,7 +8,7 @@ use saddle_rendering_trail_example_common as common;
 use std::fmt::Write as _;
 
 use bevy::prelude::*;
-#[cfg(feature = "dev")]
+#[cfg(all(feature = "dev", not(target_arch = "wasm32")))]
 use bevy_brp_extras::BrpExtrasPlugin;
 use saddle_rendering_trail::{
     Trail, TrailColorKey, TrailDiagnostics, TrailEmitterMode, TrailGradient, TrailMaterial,
@@ -16,6 +16,7 @@ use saddle_rendering_trail::{
     TrailSystems, TrailUvMode,
 };
 
+#[cfg(all(feature = "dev", not(target_arch = "wasm32")))]
 const DEFAULT_BRP_PORT: u16 = 15_752;
 const LAB_EXIT_ENV: &str = "TRAIL_LAB_EXIT_AFTER_SECONDS";
 
@@ -130,7 +131,7 @@ fn main() {
         )
         .add_systems(Update, update_overlay.in_set(LabSystems::Overlay));
 
-    #[cfg(feature = "dev")]
+    #[cfg(all(feature = "dev", not(target_arch = "wasm32")))]
     app.add_plugins(BrpExtrasPlugin::with_port(lab_brp_port()));
     #[cfg(feature = "e2e")]
     app.add_plugins(e2e::TrailLabE2EPlugin);
@@ -456,6 +457,7 @@ fn auto_exit_after(
     }
 }
 
+#[cfg(all(feature = "dev", not(target_arch = "wasm32")))]
 fn lab_brp_port() -> u16 {
     std::env::var("TRAIL_LAB_BRP_PORT")
         .ok()

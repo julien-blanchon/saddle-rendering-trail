@@ -1,7 +1,7 @@
 use saddle_rendering_trail_example_common as common;
 
 use bevy::prelude::*;
-use saddle_rendering_saddle_rendering_trail::{Trail, TrailOrientation, TrailPlugin, TrailStyle};
+use saddle_rendering_trail::{Trail, TrailOrientation, TrailPlugin, TrailStyle};
 
 #[derive(Component)]
 struct Blade;

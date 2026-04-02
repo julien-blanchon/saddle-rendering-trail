@@ -1,7 +1,7 @@
 use saddle_rendering_trail_example_common as common;
 
 use bevy::prelude::*;
-use saddle_rendering_saddle_rendering_trail::{
+use saddle_rendering_trail::{
     Trail, TrailEmitterMode, TrailPlugin, TrailScalarCurve, TrailSpace, TrailStyle,
 };
 
