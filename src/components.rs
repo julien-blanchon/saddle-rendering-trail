@@ -10,6 +10,7 @@ pub struct Trail {
     pub emitter_mode: TrailEmitterMode,
     pub space: TrailSpace,
     pub orientation: TrailOrientation,
+    pub mesh_mode: TrailMeshMode,
     pub lifetime_secs: f32,
     pub min_sample_distance: f32,
     pub max_sample_interval_secs: f32,
@@ -26,6 +27,7 @@ impl Default for Trail {
             emitter_mode: TrailEmitterMode::WhenMoving,
             space: TrailSpace::World,
             orientation: TrailOrientation::Billboard,
+            mesh_mode: TrailMeshMode::Ribbon,
             lifetime_secs: 0.9,
             min_sample_distance: 0.18,
             max_sample_interval_secs: 0.05,
@@ -68,6 +70,12 @@ impl Trail {
         self.lifetime_secs = lifetime_secs.max(0.01);
         self
     }
+
+    #[must_use]
+    pub fn with_mesh_mode(mut self, mesh_mode: TrailMeshMode) -> Self {
+        self.mesh_mode = mesh_mode;
+        self
+    }
 }
 
 #[derive(Resource, Clone, Debug, Reflect, PartialEq)]
@@ -104,7 +112,9 @@ pub struct TrailStyle {
     pub color_over_length: TrailGradient,
     pub alpha_over_length: TrailScalarCurve,
     pub alpha_over_age: TrailScalarCurve,
+    pub fade_mode: TrailFadeMode,
     pub uv_mode: TrailUvMode,
+    pub uv_scroll_speed: f32,
     pub material: TrailMaterial,
 }
 
@@ -123,7 +133,9 @@ impl Default for TrailStyle {
                 TrailScalarKey::new(1.0, 1.0),
             ]),
             alpha_over_age: TrailScalarCurve::constant(1.0),
+            fade_mode: TrailFadeMode::Alpha,
             uv_mode: TrailUvMode::Stretch,
+            uv_scroll_speed: 0.0,
             material: TrailMaterial::default(),
         }
     }
@@ -213,6 +225,73 @@ pub enum TrailSpace {
     #[default]
     World,
     Local,
+}
+
+/// Controls how the trail visually fades out over its length and age.
+#[derive(Clone, Copy, Debug, Default, Reflect, PartialEq, Eq)]
+pub enum TrailFadeMode {
+    /// Fade by reducing opacity (default behaviour).
+    #[default]
+    Alpha,
+    /// Fade by shrinking width to zero while keeping full opacity.
+    Width,
+    /// Apply both alpha and width fading simultaneously.
+    Both,
+}
+
+/// Controls the cross-section geometry of the trail mesh.
+#[derive(Clone, Copy, Debug, Default, Reflect, PartialEq)]
+pub enum TrailMeshMode {
+    /// Flat two-vertex-per-point ribbon strip (default).
+    #[default]
+    Ribbon,
+    /// Cylindrical tube with `sides` vertices per cross-section ring.
+    Tube { sides: u32 },
+}
+
+/// Attach to a trail source entity to override the auto-generated material
+/// with a user-provided `StandardMaterial` handle.
+#[derive(Component, Clone, Debug)]
+pub struct TrailCustomMaterial(pub Handle<StandardMaterial>);
+
+/// Optional LOD configuration. Attach to a trail source entity to reduce
+/// detail for trails far from the camera.
+#[derive(Component, Clone, Debug, Reflect, PartialEq)]
+#[reflect(Component, Default)]
+pub struct TrailLod {
+    /// Camera distance at which LOD reduction begins.
+    pub start_distance: f32,
+    /// Camera distance at which the trail reaches minimum detail.
+    pub end_distance: f32,
+    /// Fraction of `max_points` used at (or beyond) `end_distance` (e.g. 0.25).
+    pub min_points_fraction: f32,
+}
+
+impl Default for TrailLod {
+    fn default() -> Self {
+        Self {
+            start_distance: 20.0,
+            end_distance: 60.0,
+            min_points_fraction: 0.25,
+        }
+    }
+}
+
+impl TrailLod {
+    /// Returns the effective `max_points` for the given camera distance.
+    #[must_use]
+    pub fn effective_max_points(&self, distance: f32, base_max_points: usize) -> usize {
+        if distance <= self.start_distance {
+            base_max_points
+        } else if distance >= self.end_distance {
+            ((base_max_points as f32) * self.min_points_fraction).max(2.0) as usize
+        } else {
+            let t = (distance - self.start_distance)
+                / (self.end_distance - self.start_distance).max(f32::EPSILON);
+            let fraction = 1.0 - t * (1.0 - self.min_points_fraction);
+            ((base_max_points as f32) * fraction).max(2.0) as usize
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Reflect, PartialEq)]
@@ -413,6 +492,8 @@ pub(crate) struct TrailRenderInstance {
     pub history: crate::sampling::TrailBuffer,
     pub source_missing: bool,
     pub dirty: bool,
+    pub uv_scroll_offset: f32,
+    pub using_custom_material: bool,
 }
 
 #[derive(Component)]

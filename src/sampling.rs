@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{Trail, TrailEmitterMode};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct SamplePoint {
+pub struct SamplePoint {
     pub position: Vec3,
     pub rotation: Quat,
     pub age_secs: f32,

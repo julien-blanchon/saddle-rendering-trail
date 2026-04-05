@@ -3,7 +3,8 @@ use bevy::{camera::primitives::Aabb, camera::visibility::NoFrustumCulling, prelu
 use crate::{
     Trail, TrailDiagnostics, TrailRuntimeState, TrailSpace, TrailViewState,
     components::{
-        TrailRenderInstance, TrailRenderTag, TrailSourceLink, maybe_disable_frustum_culling,
+        TrailCustomMaterial, TrailLod, TrailRenderInstance, TrailRenderTag, TrailSourceLink,
+        maybe_disable_frustum_culling,
     },
     mesh_builder::{apply_buffers, build_mesh, camera_position_for_space},
     sampling::EmitResult,
@@ -15,6 +16,8 @@ type SourceQueryItem = (
     &'static Transform,
     Option<&'static ChildOf>,
     &'static TrailSourceLink,
+    Option<&'static TrailCustomMaterial>,
+    Option<&'static TrailLod>,
 );
 
 type SourceQueryFilter = (Without<TrailRenderTag>, Without<TrailRenderInstance>);
@@ -94,15 +97,27 @@ pub(crate) fn spawn_missing_instances(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    sources: Query<(Entity, &Trail, Option<&Name>), Without<TrailSourceLink>>,
+    sources: Query<
+        (Entity, &Trail, Option<&Name>, Option<&TrailCustomMaterial>),
+        Without<TrailSourceLink>,
+    >,
 ) {
-    for (source, trail, name) in &sources {
+    for (source, trail, name, custom_material) in &sources {
         let mesh = meshes.add(Mesh::new(
             bevy::render::render_resource::PrimitiveTopology::TriangleList,
             bevy::asset::RenderAssetUsages::MAIN_WORLD
                 | bevy::asset::RenderAssetUsages::RENDER_WORLD,
         ));
-        let material = materials.add(trail.style.material.to_standard_material());
+
+        let (material, using_custom) = if let Some(custom) = custom_material {
+            (custom.0.clone(), true)
+        } else {
+            (
+                materials.add(trail.style.material.to_standard_material()),
+                false,
+            )
+        };
+
         let render_name = name
             .map(|name| format!("{name} Trail"))
             .unwrap_or_else(|| "Trail Render".to_string());
@@ -118,6 +133,8 @@ pub(crate) fn spawn_missing_instances(
                 history: default(),
                 source_missing: false,
                 dirty: true,
+                uv_scroll_offset: 0.0,
+                using_custom_material: using_custom,
             },
             Mesh3d(mesh),
             MeshMaterial3d(material),
@@ -148,7 +165,7 @@ pub(crate) fn sync_sources_and_sample(
 ) {
     let delta_secs = time.delta_secs();
 
-    for (source, trail, transform, parent, link) in &sources {
+    for (source, trail, transform, parent, link, custom_material, lod) in &sources {
         let Ok((render_entity, mut instance, mut render_transform)) =
             instances.get_mut(link.render_entity)
         else {
@@ -160,12 +177,31 @@ pub(crate) fn sync_sources_and_sample(
         let config_changed = instance.config != *trail;
         let no_cull_changed = instance.config.style.material.disable_frustum_culling
             != trail.style.material.disable_frustum_culling;
+
+        // LOD: compute effective max points based on camera distance.
+        let effective_max_points =
+            if let (Some(lod), Some(camera_pos)) = (lod, view_state.camera_position) {
+                let world_pos = current_world_transform(source, &transforms)
+                    .map(|t| t.translation)
+                    .unwrap_or(transform.translation);
+                lod.effective_max_points(camera_pos.distance(world_pos), trail.max_points)
+            } else {
+                trail.max_points
+            };
+
         let history_changed =
             instance
                 .history
-                .advance(delta_secs, trail.lifetime_secs, trail.max_points);
+                .advance(delta_secs, trail.lifetime_secs, effective_max_points);
         let age_animation_dirty =
             trail.style.animates_alpha_over_age() && !instance.history.points.is_empty();
+
+        // UV scroll
+        let scroll_active =
+            trail.style.uv_scroll_speed.abs() > f32::EPSILON && !instance.history.points.is_empty();
+        if scroll_active {
+            instance.uv_scroll_offset += trail.style.uv_scroll_speed * delta_secs;
+        }
 
         if no_cull_changed {
             sync_frustum_culling(
@@ -174,8 +210,45 @@ pub(crate) fn sync_sources_and_sample(
                 trail.style.material.disable_frustum_culling,
             );
         }
+
+        // Handle custom material changes.
+        let custom_changed = match (custom_material, instance.using_custom_material) {
+            (Some(custom), true) => {
+                // User updated the handle.
+                if instance.material != custom.0 {
+                    instance.material = custom.0.clone();
+                    commands
+                        .entity(render_entity)
+                        .insert(MeshMaterial3d(custom.0.clone()));
+                    true
+                } else {
+                    false
+                }
+            }
+            (Some(custom), false) => {
+                // User added a custom material.
+                instance.material = custom.0.clone();
+                instance.using_custom_material = true;
+                commands
+                    .entity(render_entity)
+                    .insert(MeshMaterial3d(custom.0.clone()));
+                true
+            }
+            (None, true) => {
+                // User removed custom material, revert to auto.
+                let new_mat = materials.add(trail.style.material.to_standard_material());
+                instance.material = new_mat.clone();
+                instance.using_custom_material = false;
+                commands
+                    .entity(render_entity)
+                    .insert(MeshMaterial3d(new_mat));
+                true
+            }
+            (None, false) => false,
+        };
+
         instance.config = trail.clone();
-        if config_changed {
+        if config_changed && !instance.using_custom_material {
             if let Some(material) = materials.get_mut(&instance.material) {
                 *material = trail.style.material.to_standard_material();
             }
@@ -207,8 +280,10 @@ pub(crate) fn sync_sources_and_sample(
 
         instance.dirty = instance.dirty
             || config_changed
+            || custom_changed
             || history_changed
             || age_animation_dirty
+            || scroll_active
             || emit_result != EmitResult::Ignored
             || matches!(trail.orientation, crate::TrailOrientation::Billboard)
                 && view_state.changed;
@@ -239,11 +314,19 @@ pub(crate) fn tick_orphaned_instances(
         );
         let age_animation_dirty =
             instance.config.style.animates_alpha_over_age() && !instance.history.points.is_empty();
+        let scroll_active = instance.config.style.uv_scroll_speed.abs() > f32::EPSILON
+            && !instance.history.points.is_empty();
+        if scroll_active {
+            instance.uv_scroll_offset += instance.config.style.uv_scroll_speed * delta_secs;
+        }
         let changed = instance
             .history
             .advance(delta_secs, lifetime_secs, max_points);
-        instance.dirty =
-            instance.dirty || changed || age_animation_dirty || is_billboard && view_state.changed;
+        instance.dirty = instance.dirty
+            || changed
+            || age_animation_dirty
+            || scroll_active
+            || is_billboard && view_state.changed;
     }
 }
 
@@ -266,7 +349,12 @@ pub(crate) fn rebuild_dirty_meshes(
         let camera_position = view_state.camera_position.map(|position| {
             camera_position_for_space(instance.config.space, render_transform, position)
         });
-        let buffers = build_mesh(&instance.history.points, &instance.config, camera_position);
+        let buffers = build_mesh(
+            &instance.history.points,
+            &instance.config,
+            camera_position,
+            instance.uv_scroll_offset,
+        );
         let visible = buffers.visible;
         let bounds = buffers.aabb;
 

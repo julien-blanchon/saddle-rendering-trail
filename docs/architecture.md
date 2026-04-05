@@ -194,6 +194,86 @@ When a source entity disappears:
 - `keep_after_source_despawn = true` lets the existing trail decay naturally until its points expire
 - otherwise cleanup removes the render entity as soon as the source link is detected as stale
 
+## Fade Modes
+
+`TrailFadeMode` controls how the trail visually tapers from head to tail:
+
+### `Alpha` (default)
+
+The existing alpha curves (`alpha_over_length`, `alpha_over_age`) drive vertex alpha as before. Width is unaffected by alpha.
+
+### `Width`
+
+The alpha curves are redirected to modulate the width instead of the vertex alpha. The mesh physically narrows at the tail rather than becoming transparent. Vertex alpha is set to `1.0` so the trail remains fully opaque. This is useful for solid weapon trails where transparency doesn't look right.
+
+### `Both`
+
+Both channels are active: the alpha curves drive both width modulation and vertex alpha simultaneously. The trail narrows and fades at the same time.
+
+The fade mode is evaluated in `mesh_builder.rs` via two helper functions:
+- `compute_width_with_fade()` — multiplies the base width × width curve by the alpha curve when the mode is `Width` or `Both`
+- `compute_color_with_fade()` — skips alpha application when the mode is `Width` only
+
+## Tube Mesh Mode
+
+`TrailMeshMode::Tube { sides }` generates a cylindrical cross-section instead of a flat ribbon.
+
+For each sample point, the builder generates `sides` vertices arranged in a circle perpendicular to the tangent direction. The circle plane is constructed from the same side vector and up vector used by the ribbon builder, then swept `sides` times around the tangent.
+
+Index generation connects adjacent rings with triangle pairs, forming a closed tube surface. At the tail end, a fan of triangles closes the cap.
+
+Vertex count scales as `sides × points` (compared with `2 × points` for ribbons), so tube mode is more expensive. Typical values of 4–8 sides work well for rope and energy beam effects.
+
+## UV Scroll
+
+When `TrailStyle::uv_scroll_speed` is non-zero, the runtime accumulates a UV offset each frame:
+
+```
+uv_scroll_offset += uv_scroll_speed × delta_secs
+```
+
+The offset is added to the base `u` coordinate during mesh generation, creating continuous texture animation along the trail. This is useful for flowing energy effects, magical streams, and pulsing patterns.
+
+The scroll offset is tracked per render instance and continues to accumulate even for orphaned (decaying) trails.
+
+**Performance note**: A non-zero scroll speed marks the trail dirty every frame, forcing a mesh rebuild regardless of whether the source is moving or the camera has changed.
+
+## Custom Material Override
+
+By default, the crate creates and manages a `StandardMaterial` for each trail's render entity, syncing it from the `TrailMaterial` configuration.
+
+When a `TrailCustomMaterial(handle)` component is present on the source entity:
+
+1. The crate assigns the user's material handle to the render entity instead of the auto-generated one
+2. It skips all per-frame material synchronization from `TrailMaterial`
+3. If the user removes the component, the crate reverts to managing its own material
+4. If the user changes the handle inside the component, the crate hot-swaps the render entity's material
+
+This escape hatch allows advanced users to use custom shaders, animated materials, or material instances shared across multiple trail sources.
+
+## Level of Detail (LOD)
+
+The optional `TrailLod` component enables distance-based point count reduction.
+
+Each frame, the system computes the distance between the trail source and the active camera. This distance is used to linearly interpolate the effective `max_points`:
+
+```
+effective_max_points = lerp(trail.max_points, lod.min_points, distance / lod.max_distance)
+```
+
+Clamped so that it never exceeds `trail.max_points` or drops below `lod.min_points`.
+
+When the effective max is lower than the current point count, excess points are trimmed from the oldest end. This reduces vertex count for far-away trails where detail is not visible.
+
+## Public Sample Points
+
+`TrailSamplePoint` is exposed as a public type so that users can write custom modifier systems. A modifier system ordered between `TrailSystems::Sample` and `TrailSystems::BuildMesh` can read or mutate the sample points in a trail's buffer before the mesh is generated.
+
+Example use cases:
+- Procedural noise displacement along the trail
+- Physics-based droop or wind deflection
+- Snapping points to a surface
+
 ## Performance Tradeoffs
 
 The current implementation uses a `Vec`-backed point buffer and rebuilds the entire mesh when dirty.

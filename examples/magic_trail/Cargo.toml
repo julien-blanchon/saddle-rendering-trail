@@ -1,0 +1,14 @@
+[package]
+name = "saddle-rendering-trail-example-magic-trail"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+bevy = { workspace = true }
+saddle-rendering-trail = { workspace = true }
+saddle-rendering-trail-example-common = { path = "../common" }
+bevy_hanabi = { git = "https://github.com/djeedai/bevy_hanabi", default-features = false, features = ["3d"] }
+
+[lints]
+workspace = true

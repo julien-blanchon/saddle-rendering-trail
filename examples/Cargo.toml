@@ -7,6 +7,10 @@ members = [
     "orientation_modes",
     "space_modes",
     "stress",
+    "weapon_trail",
+    "fade_modes",
+    "drawing_trail",
+    "magic_trail",
     "lab",
 ]
 resolver = "3"

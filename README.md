@@ -77,21 +77,32 @@ app.add_plugins(TrailPlugin::new(
 |------|---------|
 | `TrailPlugin` | Registers the runtime with injectable activate, deactivate, and update schedules |
 | `TrailSystems` | Public ordering hooks for sampling, mesh rebuilds, cleanup, diagnostics, and optional debug drawing |
-| `Trail` | Per-source sampling, lifetime, reset, cleanup, and orientation configuration |
-| `TrailStyle` | Width, color, alpha, UV, and material configuration for the generated ribbon |
+| `Trail` | Per-source sampling, lifetime, reset, cleanup, orientation, and mesh mode configuration |
+| `TrailStyle` | Width, color, alpha, UV, fade mode, scroll speed, and material configuration |
 | `TrailMaterial` | StandardMaterial-backed appearance settings for the spawned render entity |
+| `TrailCustomMaterial` | Optional component to override the auto-generated material with a user-provided handle |
 | `TrailEmitterMode` | `Always`, `WhenMoving`, or `Disabled` sampling behavior |
 | `TrailSpace` | `World` or `Local` point storage and mesh-space behavior |
 | `TrailOrientation` | `Billboard` or transform-locked axis mode |
+| `TrailMeshMode` | `Ribbon` (flat strip) or `Tube { sides }` (cylindrical mesh) |
+| `TrailFadeMode` | `Alpha` (opacity fade), `Width` (shrink to nothing), or `Both` |
 | `TrailUvMode` | Stretch once over the full ribbon or repeat by traveled distance |
 | `TrailScalarCurve` / `TrailScalarKey` | Width and alpha curves over normalized length or normalized age |
 | `TrailGradient` / `TrailColorKey` | Color ramp over normalized ribbon length |
+| `TrailLod` | Optional distance-based LOD that reduces point counts for far-away trails |
+| `TrailSamplePoint` | Public point type for user-defined trail modifier systems |
 | `TrailDebugSettings` | Optional gizmo drawing for points, segments, normals, and bounds |
 | `TrailDiagnostics` | Runtime counters for active sources, active points, resets, and mesh rebuilds |
 
 ## Supported
 
-- CPU-built ribbon meshes with rebuilds only when sampling, styling, camera state, or age-driven alpha requires new geometry colors
+- CPU-built ribbon meshes with rebuilds only when sampling, styling, camera state, or age-driven alpha requires new geometry
+- **Ribbon and tube mesh modes** — flat two-vertex ribbon or cylindrical tube cross-sections
+- **Fade modes** — Alpha (opacity), Width (shrink to nothing), or Both simultaneously
+- **UV scroll** — continuous UV animation along the trail for flowing texture effects
+- **Custom materials** — attach `TrailCustomMaterial` to override the auto-generated material
+- **LOD** — attach `TrailLod` for distance-based point count reduction
+- **Public sample points** — `TrailSamplePoint` exposed for user-defined modifier systems
 - World-space and local-space trails
 - Camera-facing billboard ribbons
 - Transform-locked ribbons using a source-local axis
@@ -102,17 +113,16 @@ app.add_plugins(TrailPlugin::new(
 - Stretch and repeat-by-distance UV modes
 - Source-despawn decay tails and deactivate-time clear behavior
 - Diagnostics publication and optional gizmo debug drawing
-- Crate-local examples, stress checks, E2E scenarios, and BRP inspection
+- GPU particle integration (bevy_hanabi) demonstrated in examples
 
-## Intentionally Deferred In V1
+## Intentionally Deferred
 
 - Dual-edge sword-strip authoring
 - Cross-ribbon volumetric shapes
 - Spline smoothing or interpolation passes
-- Custom material or shader ownership by the consumer
 - Pooling or ring-buffer reuse beyond the current `Vec`-backed history
 
-The v1 runtime deliberately keeps the rendering path small and debuggable: the crate owns a `StandardMaterial` plus a generated mesh with vertex colors and UVs.
+The runtime deliberately keeps the rendering path small and debuggable: the crate owns a `StandardMaterial` (or user-provided material) plus a generated mesh with vertex colors and UVs.
 
 ## Examples
 
@@ -124,6 +134,10 @@ The v1 runtime deliberately keeps the rendering path small and debuggable: the c
 | `orientation_modes` | Billboard and transform-locked trails side by side | `cargo run -p saddle-rendering-trail-example-orientation-modes` |
 | `space_modes` | World-space residue versus parent-following local-space trails | `cargo run -p saddle-rendering-trail-example-space-modes` |
 | `stress` | Many simultaneous trails for rough scaling checks | `cargo run -p saddle-rendering-trail-example-stress` |
+| `weapon_trail` | Sword + axe swipes showcasing Width and Both fade modes | `cargo run -p saddle-rendering-trail-example-weapon-trail` |
+| `fade_modes` | Side-by-side comparison of Alpha, Width, and Both fade modes | `cargo run -p saddle-rendering-trail-example-fade-modes` |
+| `drawing_trail` | Mouse-driven painting on a ground plane with age fade-out | `cargo run -p saddle-rendering-trail-example-drawing-trail` |
+| `magic_trail` | GPU particle integration (bevy_hanabi) — orb sparks + sword embers | `cargo run -p saddle-rendering-trail-example-magic-trail` |
 
 ## Workspace Lab
 

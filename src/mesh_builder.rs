@@ -7,7 +7,7 @@ use bevy::{
 };
 
 use crate::{
-    Trail, TrailOrientation, TrailSpace, TrailUvMode,
+    Trail, TrailFadeMode, TrailMeshMode, TrailOrientation, TrailSpace, TrailUvMode,
     sampling::{SamplePoint, normalized_lengths},
 };
 
@@ -26,6 +26,30 @@ pub(crate) fn build_mesh(
     points: &[SamplePoint],
     trail: &Trail,
     camera_position_in_trail_space: Option<Vec3>,
+    uv_scroll_offset: f32,
+) -> TrailMeshBuffers {
+    match trail.mesh_mode {
+        TrailMeshMode::Ribbon => build_ribbon_mesh(
+            points,
+            trail,
+            camera_position_in_trail_space,
+            uv_scroll_offset,
+        ),
+        TrailMeshMode::Tube { sides } => build_tube_mesh(
+            points,
+            trail,
+            camera_position_in_trail_space,
+            sides.max(3),
+            uv_scroll_offset,
+        ),
+    }
+}
+
+fn build_ribbon_mesh(
+    points: &[SamplePoint],
+    trail: &Trail,
+    camera_position_in_trail_space: Option<Vec3>,
+    uv_scroll_offset: f32,
 ) -> TrailMeshBuffers {
     if points.len() < 2 {
         return TrailMeshBuffers::default();
@@ -50,7 +74,7 @@ pub(crate) fn build_mesh(
         let tangent = tangent_at(points, index);
         let length_t = normalized[index];
         let age_t = (point.age_secs / trail.lifetime_secs.max(f32::EPSILON)).clamp(0.0, 1.0);
-        let half_width = trail.style.evaluate_width(length_t) * 0.5;
+        let half_width = compute_width_with_fade(trail, length_t, age_t) * 0.5;
         if half_width <= f32::EPSILON {
             continue;
         }
@@ -58,11 +82,8 @@ pub(crate) fn build_mesh(
         let normal = side.cross(tangent).normalize_or_zero();
         let left = point.position - side * half_width;
         let right = point.position + side * half_width;
-        let color = trail.style.evaluate_color(length_t, age_t);
-        let u = match trail.style.uv_mode {
-            TrailUvMode::Stretch => length_t,
-            TrailUvMode::RepeatByDistance { distance } => accumulated_length / distance.max(0.001),
-        };
+        let color = compute_color_with_fade(trail, length_t, age_t);
+        let u = compute_u(trail, length_t, accumulated_length, uv_scroll_offset);
 
         buffers.positions.push(left.to_array());
         buffers.positions.push(right.to_array());
@@ -101,6 +122,123 @@ pub(crate) fn build_mesh(
     buffers.aabb = Some(Aabb::from_min_max(mins, maxs));
     buffers.visible = true;
     buffers
+}
+
+fn build_tube_mesh(
+    points: &[SamplePoint],
+    trail: &Trail,
+    camera_position_in_trail_space: Option<Vec3>,
+    sides: u32,
+    uv_scroll_offset: f32,
+) -> TrailMeshBuffers {
+    if points.len() < 2 {
+        return TrailMeshBuffers::default();
+    }
+
+    let mut buffers = TrailMeshBuffers::default();
+    let normalized = normalized_lengths(points);
+    let total_length = crate::sampling::total_length(points);
+    if total_length <= f32::EPSILON {
+        return buffers;
+    }
+
+    let mut accumulated_length = 0.0;
+    let mut mins = Vec3::splat(f32::INFINITY);
+    let mut maxs = Vec3::splat(f32::NEG_INFINITY);
+    let mut ring_count: u32 = 0;
+
+    for (index, point) in points.iter().enumerate() {
+        if index > 0 {
+            accumulated_length += points[index - 1].position.distance(point.position);
+        }
+
+        let tangent = tangent_at(points, index);
+        let length_t = normalized[index];
+        let age_t = (point.age_secs / trail.lifetime_secs.max(f32::EPSILON)).clamp(0.0, 1.0);
+        let radius = compute_width_with_fade(trail, length_t, age_t) * 0.5;
+        if radius <= f32::EPSILON {
+            continue;
+        }
+        let color = compute_color_with_fade(trail, length_t, age_t);
+        let u = compute_u(trail, length_t, accumulated_length, uv_scroll_offset);
+
+        let side = side_vector(trail, *point, tangent, camera_position_in_trail_space);
+        let up = side.cross(tangent).normalize_or_zero();
+
+        for i in 0..sides {
+            let angle = (i as f32 / sides as f32) * std::f32::consts::TAU;
+            let local = side * angle.cos() + up * angle.sin();
+            let pos = point.position + local * radius;
+            let normal = local.normalize_or_zero();
+            let v = i as f32 / sides as f32;
+
+            buffers.positions.push(pos.to_array());
+            buffers.normals.push(normal.to_array());
+            buffers.uvs.push([u, v]);
+            buffers
+                .colors
+                .push([color.red, color.green, color.blue, color.alpha]);
+
+            mins = mins.min(pos);
+            maxs = maxs.max(pos);
+        }
+        ring_count += 1;
+    }
+
+    if ring_count < 2 {
+        return TrailMeshBuffers::default();
+    }
+
+    for ring in 0..(ring_count - 1) {
+        for i in 0..sides {
+            let next_i = (i + 1) % sides;
+            let current_base = ring * sides;
+            let next_base = (ring + 1) * sides;
+
+            buffers.indices.extend_from_slice(&[
+                current_base + i,
+                next_base + i,
+                current_base + next_i,
+                current_base + next_i,
+                next_base + i,
+                next_base + next_i,
+            ]);
+        }
+    }
+
+    buffers.aabb = Some(Aabb::from_min_max(mins, maxs));
+    buffers.visible = true;
+    buffers
+}
+
+fn compute_width_with_fade(trail: &Trail, length_t: f32, age_t: f32) -> f32 {
+    let base = trail.style.evaluate_width(length_t);
+    match trail.style.fade_mode {
+        TrailFadeMode::Alpha => base,
+        TrailFadeMode::Width | TrailFadeMode::Both => {
+            let alpha = trail.style.alpha_over_length.evaluate(length_t)
+                * trail.style.alpha_over_age.evaluate(age_t);
+            base * alpha.clamp(0.0, 1.0)
+        }
+    }
+}
+
+fn compute_color_with_fade(trail: &Trail, length_t: f32, age_t: f32) -> LinearRgba {
+    match trail.style.fade_mode {
+        TrailFadeMode::Alpha | TrailFadeMode::Both => trail.style.evaluate_color(length_t, age_t),
+        TrailFadeMode::Width => {
+            // Don't apply alpha fade to color, only the color gradient.
+            trail.style.color_over_length.evaluate(length_t)
+        }
+    }
+}
+
+fn compute_u(trail: &Trail, length_t: f32, accumulated_length: f32, uv_scroll_offset: f32) -> f32 {
+    let base_u = match trail.style.uv_mode {
+        TrailUvMode::Stretch => length_t,
+        TrailUvMode::RepeatByDistance { distance } => accumulated_length / distance.max(0.001),
+    };
+    base_u + uv_scroll_offset
 }
 
 pub(crate) fn apply_buffers(mesh: &mut Mesh, buffers: TrailMeshBuffers) {

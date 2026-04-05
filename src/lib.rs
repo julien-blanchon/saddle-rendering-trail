@@ -12,10 +12,12 @@ mod sampling;
 mod systems;
 
 pub use components::{
-    Trail, TrailColorKey, TrailDebugSettings, TrailEmitterMode, TrailGradient, TrailMaterial,
-    TrailOrientation, TrailScalarCurve, TrailScalarKey, TrailSpace, TrailStyle, TrailUvMode,
+    Trail, TrailColorKey, TrailCustomMaterial, TrailDebugSettings, TrailEmitterMode, TrailFadeMode,
+    TrailGradient, TrailLod, TrailMaterial, TrailMeshMode, TrailOrientation, TrailScalarCurve,
+    TrailScalarKey, TrailSpace, TrailStyle, TrailUvMode,
 };
 pub use resources::TrailDiagnostics;
+pub use sampling::SamplePoint as TrailSamplePoint;
 
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum TrailSystems {
@@ -99,6 +101,9 @@ impl Plugin for TrailPlugin {
             .register_type::<TrailSpace>()
             .register_type::<TrailStyle>()
             .register_type::<TrailUvMode>()
+            .register_type::<TrailFadeMode>()
+            .register_type::<TrailMeshMode>()
+            .register_type::<TrailLod>()
             .add_systems(self.activate_schedule, systems::activate_runtime)
             .add_systems(self.deactivate_schedule, systems::deactivate_runtime)
             .configure_sets(

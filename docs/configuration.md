@@ -47,11 +47,13 @@ Normalized age runs from newly emitted (`0.0`) to expired (`1.0`).
 | Field | Type | Default | Expected range | Effect | Performance notes |
 |------|------|---------|----------------|--------|-------------------|
 | `base_width` | `f32` | `0.35` | `>= 0.0` | Base ribbon width before width-curve modulation | Wider trails increase the size of the generated bounds but not vertex count |
+| `fade_mode` | `TrailFadeMode` | `Alpha` | enum | How the trail fades from head to tail — opacity, width, or both | Width/Both fade modes apply alpha curves to the width computation, so the mesh itself narrows |
 | `width_over_length` | `TrailScalarCurve` | linear `0.45 -> 1.0` | keys in `0..1` | Multiplies width from tail to head | Cheap curve evaluation per point |
 | `color_over_length` | `TrailGradient` | pale blue to white | keys in `0..1` | Interpolates vertex color from tail to head | Cheap per-point linear interpolation |
 | `alpha_over_length` | `TrailScalarCurve` | tail fades in, head fully opaque | keys in `0..1` | Fades by position along the ribbon | Useful for soft tails |
 | `alpha_over_age` | `TrailScalarCurve` | constant `1.0` | keys in `0..1` | Fades individual points as they age toward expiration | Non-constant curves rebuild while live points age, even if the source is otherwise stationary |
 | `uv_mode` | `TrailUvMode` | `Stretch` | enum | Controls how `u` advances along the ribbon | Repeat mode uses traveled distance accumulation but is still cheap |
+| `uv_scroll_speed` | `f32` | `0.0` | any | Continuous UV scroll along the trail in units per second | When non-zero the trail marks itself dirty every frame, increasing rebuild frequency |
 | `material` | `TrailMaterial` | see below | struct | StandardMaterial-backed shading configuration | Material changes are copied onto the owned render material handle |
 
 ## `TrailUvMode`
@@ -99,6 +101,44 @@ Practical guidance:
 
 - Tail-dark, head-bright ramps read well for speed lines.
 - Tail-transparent, head-bright ramps are often better handled by keeping the color bright and shaping opacity with `alpha_over_length`.
+
+## `TrailFadeMode`
+
+| Variant | Choose it when | Notes |
+|---------|----------------|-------|
+| `Alpha` | Default — the trail fades via opacity from head to tail | Standard approach, works best with `AlphaMode::Blend` |
+| `Width` | You want the trail to narrow to nothing at the tail | Alpha curves are redirected to modulate the width instead of vertex alpha; useful for melee swipes and weapon trails |
+| `Both` | You want simultaneous width narrowing and opacity fade | Combines both approaches — the trail shrinks and fades at the same time |
+
+## `TrailMeshMode`
+
+| Variant | Choose it when | Notes |
+|---------|----------------|-------|
+| `Ribbon` | Default — a flat two-vertex strip that faces the camera or follows a locked axis | Cheapest option, best for most trail effects |
+| `Tube { sides }` | You need a cylindrical cross-section (rope, wire, energy beam) | Generates `sides` vertices per sample point in a ring; minimum 3 sides. Roughly `sides × points` vertices per frame rebuild |
+
+## `TrailCustomMaterial`
+
+Attach `TrailCustomMaterial(handle)` to a trail source entity to override the auto-generated `StandardMaterial`. When present, the crate skips creating and syncing its own material and instead assigns your handle to the render entity.
+
+- Adding the component at runtime swaps the material immediately
+- Removing the component reverts to the auto-generated material from `TrailMaterial`
+- Changing the handle inside the component hot-swaps the material on the render entity
+
+## `TrailLod`
+
+Attach `TrailLod` to a trail source entity for distance-based level of detail.
+
+| Field | Type | Default | Expected range | Effect |
+|------|------|---------|----------------|--------|
+| `max_distance` | `f32` | `50.0` | `> 0.0` | Distance at which the trail drops to `min_points` |
+| `min_points` | `usize` | `4` | `>= 2` | Minimum point count at maximum distance |
+
+The effective max-points is linearly interpolated between `Trail::max_points` (at distance 0) and `min_points` (at `max_distance`). Points beyond the camera distance are clamped to `min_points`. This reduces geometry for far-away trails without affecting close-up quality.
+
+## `TrailSamplePoint`
+
+`TrailSamplePoint` is the public type for individual trail sample points. It exposes position, age, and normalized length for user-defined modifier systems that run between `TrailSystems::Sample` and `TrailSystems::BuildMesh`.
 
 ## `TrailDebugSettings`
 

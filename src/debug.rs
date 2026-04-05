@@ -37,6 +37,7 @@ pub(crate) fn draw_debug(
                 &instance.history.points,
                 &instance.config,
                 Some(camera_position),
+                0.0,
             );
             for segment in buffers.positions.chunks_exact(2) {
                 let left = render_transform.transform_point(Vec3::from_array(segment[0]));
