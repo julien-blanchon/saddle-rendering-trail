@@ -1,7 +1,7 @@
 use bevy::{camera::primitives::Aabb, camera::visibility::NoFrustumCulling, prelude::*};
 
 use crate::{
-    Trail, TrailDiagnostics, TrailRuntimeState, TrailSpace, TrailViewState,
+    Trail, TrailDiagnostics, TrailRuntimeState, TrailSpace, TrailViewSource, TrailViewState,
     components::{
         TrailCustomMaterial, TrailLod, TrailRenderInstance, TrailRenderTag, TrailSourceLink,
         maybe_disable_frustum_culling,
@@ -130,6 +130,7 @@ pub(crate) fn spawn_missing_instances(
                 mesh: mesh.clone(),
                 material: material.clone(),
                 config: trail.clone(),
+                view_state: default(),
                 history: default(),
                 source_missing: false,
                 dirty: true,
@@ -156,7 +157,7 @@ pub(crate) fn spawn_missing_instances(
 pub(crate) fn sync_sources_and_sample(
     mut commands: Commands,
     time: Res<Time>,
-    view_state: Res<TrailViewState>,
+    auto_view_state: Res<TrailViewState>,
     mut runtime: ResMut<TrailRuntimeState>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut instances: Query<(Entity, &mut TrailRenderInstance, &mut Transform), Without<Trail>>,
@@ -177,10 +178,18 @@ pub(crate) fn sync_sources_and_sample(
         let config_changed = instance.config != *trail;
         let no_cull_changed = instance.config.style.material.disable_frustum_culling
             != trail.style.material.disable_frustum_culling;
+        let resolved_view_state = resolve_view_state(
+            trail.view_source,
+            *auto_view_state,
+            instance.view_state,
+            &transforms,
+        );
+        let view_changed = resolved_view_state.changed;
+        instance.view_state = resolved_view_state;
 
         // LOD: compute effective max points based on camera distance.
         let effective_max_points =
-            if let (Some(lod), Some(camera_pos)) = (lod, view_state.camera_position) {
+            if let (Some(lod), Some(camera_pos)) = (lod, instance.view_state.camera_position) {
                 let world_pos = current_world_transform(source, &transforms)
                     .map(|t| t.translation)
                     .unwrap_or(transform.translation);
@@ -274,6 +283,7 @@ pub(crate) fn sync_sources_and_sample(
         let emit_result = instance
             .history
             .maybe_emit(trail, sample_position, sample_rotation);
+        let lod_trimmed_after_emit = instance.history.trim_to_max_points(effective_max_points);
         if emit_result == EmitResult::ResetAndAppended {
             runtime.total_resets += 1;
         }
@@ -282,18 +292,19 @@ pub(crate) fn sync_sources_and_sample(
             || config_changed
             || custom_changed
             || history_changed
+            || lod_trimmed_after_emit
             || age_animation_dirty
             || scroll_active
             || emit_result != EmitResult::Ignored
-            || matches!(trail.orientation, crate::TrailOrientation::Billboard)
-                && view_state.changed;
+            || matches!(trail.orientation, crate::TrailOrientation::Billboard) && view_changed;
     }
 }
 
 pub(crate) fn tick_orphaned_instances(
     time: Res<Time>,
-    view_state: Res<TrailViewState>,
+    auto_view_state: Res<TrailViewState>,
     all_entities: Query<()>,
+    transforms: Query<(&Transform, Option<&ChildOf>), Without<TrailRenderInstance>>,
     mut instances: Query<&mut TrailRenderInstance, Without<Trail>>,
 ) {
     let delta_secs = time.delta_secs();
@@ -312,6 +323,14 @@ pub(crate) fn tick_orphaned_instances(
             instance.config.orientation,
             crate::TrailOrientation::Billboard
         );
+        let resolved_view_state = resolve_view_state(
+            instance.config.view_source,
+            *auto_view_state,
+            instance.view_state,
+            &transforms,
+        );
+        let view_changed = resolved_view_state.changed;
+        instance.view_state = resolved_view_state;
         let age_animation_dirty =
             instance.config.style.animates_alpha_over_age() && !instance.history.points.is_empty();
         let scroll_active = instance.config.style.uv_scroll_speed.abs() > f32::EPSILON
@@ -326,13 +345,12 @@ pub(crate) fn tick_orphaned_instances(
             || changed
             || age_animation_dirty
             || scroll_active
-            || is_billboard && view_state.changed;
+            || is_billboard && view_changed;
     }
 }
 
 pub(crate) fn rebuild_dirty_meshes(
     mut runtime: ResMut<TrailRuntimeState>,
-    view_state: Res<TrailViewState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut instances: Query<(
         &mut TrailRenderInstance,
@@ -346,7 +364,7 @@ pub(crate) fn rebuild_dirty_meshes(
             continue;
         }
 
-        let camera_position = view_state.camera_position.map(|position| {
+        let camera_position = instance.view_state.camera_position.map(|position| {
             camera_position_for_space(instance.config.space, render_transform, position)
         });
         let buffers = build_mesh(
@@ -382,6 +400,45 @@ fn sync_frustum_culling(commands: &mut Commands, render_entity: Entity, disable:
     } else {
         commands.entity(render_entity).remove::<NoFrustumCulling>();
     }
+}
+
+fn resolve_view_state(
+    view_source: TrailViewSource,
+    auto_view_state: TrailViewState,
+    previous: TrailViewState,
+    transforms: &Query<(&Transform, Option<&ChildOf>), Without<TrailRenderInstance>>,
+) -> TrailViewState {
+    let mut next =
+        match view_source {
+            TrailViewSource::ActiveCamera3d => TrailViewState {
+                changed: false,
+                ..auto_view_state
+            },
+            TrailViewSource::Entity(entity) => current_world_transform(entity, transforms)
+                .map_or_else(TrailViewState::default, |transform| TrailViewState {
+                    camera_entity: Some(entity),
+                    camera_position: Some(transform.translation),
+                    camera_rotation: Some(transform.rotation),
+                    changed: false,
+                }),
+        };
+
+    next.changed = view_state_changed(previous, next);
+    next
+}
+
+fn view_state_changed(previous: TrailViewState, current: TrailViewState) -> bool {
+    previous.camera_entity != current.camera_entity
+        || previous
+            .camera_position
+            .zip(current.camera_position)
+            .is_some_and(|(a, b)| a.distance(b) > 0.0001)
+        || previous.camera_position.is_some() != current.camera_position.is_some()
+        || previous
+            .camera_rotation
+            .zip(current.camera_rotation)
+            .is_some_and(|(a, b)| a.dot(b).abs() < 0.999_999)
+        || previous.camera_rotation.is_some() != current.camera_rotation.is_some()
 }
 
 fn current_world_transform(

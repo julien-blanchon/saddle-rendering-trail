@@ -4,7 +4,7 @@ use saddle_bevy_e2e::{
     actions::{assertions, inspect},
     scenario::Scenario,
 };
-use saddle_rendering_trail::{Trail, TrailDiagnostics, TrailOrientation, TrailSpace};
+use saddle_rendering_trail::{Trail, TrailDiagnostics, TrailOrientation, TrailSpace, TrailViewSource};
 
 use crate::LabEntities;
 
@@ -17,6 +17,7 @@ pub fn scenario_by_name(name: &str) -> Option<Scenario> {
         "trail_billboard" => Some(build_billboard()),
         "trail_locked" => Some(build_locked()),
         "trail_reset" => Some(build_reset()),
+        "trail_view_source" => Some(build_view_source()),
         _ => None,
     }
 }
@@ -27,6 +28,7 @@ pub fn list_scenarios() -> Vec<&'static str> {
         "trail_billboard",
         "trail_locked",
         "trail_reset",
+        "trail_view_source",
     ]
 }
 
@@ -146,6 +148,28 @@ fn build_reset() -> Scenario {
         .then(inspect::log_resource::<TrailDiagnostics>("trail_reset diagnostics"))
         .then(Action::Screenshot("trail_reset_after".into()))
         .then(assertions::log_summary("trail_reset summary"))
+        .build()
+}
+
+fn build_view_source() -> Scenario {
+    Scenario::builder("trail_view_source")
+        .description("Verify the lab sources bind their trail view source to the lab camera entity and capture the configured result.")
+        .then(Action::WaitFrames(36))
+        .then(assertions::custom("billboard source uses explicit lab camera view source", |world| {
+            let lab = *world.resource::<LabEntities>();
+            world
+                .get::<Trail>(lab.billboard)
+                .is_some_and(|trail| trail.view_source == TrailViewSource::Entity(lab.camera))
+        }))
+        .then(assertions::custom("locked source uses explicit lab camera view source", |world| {
+            let lab = *world.resource::<LabEntities>();
+            world
+                .get::<Trail>(lab.locked)
+                .is_some_and(|trail| trail.view_source == TrailViewSource::Entity(lab.camera))
+        }))
+        .then(Action::Screenshot("trail_view_source".into()))
+        .then(inspect::log_resource::<TrailDiagnostics>("trail_view_source diagnostics"))
+        .then(assertions::log_summary("trail_view_source summary"))
         .build()
 }
 

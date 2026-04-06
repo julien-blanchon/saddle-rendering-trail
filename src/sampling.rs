@@ -28,6 +28,12 @@ impl TrailBuffer {
         self.time_since_emit_secs = 0.0;
     }
 
+    pub fn trim_to_max_points(&mut self, max_points: usize) -> bool {
+        let before = self.points.len();
+        trim_to_max_points(&mut self.points, max_points);
+        before != self.points.len()
+    }
+
     pub fn advance(&mut self, delta_secs: f32, lifetime_secs: f32, max_points: usize) -> bool {
         self.time_since_emit_secs += delta_secs.max(0.0);
         if self.points.is_empty() {
@@ -41,7 +47,7 @@ impl TrailBuffer {
         let before = self.points.len();
         self.points
             .retain(|point| point.age_secs <= lifetime_secs.max(0.0));
-        trim_to_max_points(&mut self.points, max_points);
+        self.trim_to_max_points(max_points);
         before != self.points.len()
     }
 

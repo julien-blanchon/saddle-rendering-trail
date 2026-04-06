@@ -42,7 +42,7 @@ fn setup(
                 base_color: Color::srgb(0.9, 0.4, 0.2),
                 ..default()
             },
-            ..default()
+            ..common::showcase_trail_style()
         }),
         Mesh3d(meshes.add(Sphere::new(0.24).mesh().uv(16, 10))),
         MeshMaterial3d(common::glow_material(
@@ -63,7 +63,7 @@ fn setup(
                     base_color: Color::srgb(0.3, 0.85, 1.0),
                     ..default()
                 },
-                ..default()
+                ..common::showcase_trail_style()
             }),
         Mesh3d(meshes.add(Cuboid::new(0.22, 0.8, 0.22))),
         MeshMaterial3d(common::glow_material(

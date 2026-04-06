@@ -46,7 +46,7 @@ This logic is plain Rust and easy to unit-test.
 - ECS components and resources
 - schedule wiring
 - render-entity spawn and cleanup
-- camera extraction
+- active-camera snapshotting and per-trail view-source resolution
 - mesh rebuilds
 - bounds updates
 - diagnostics publication
@@ -85,20 +85,29 @@ Within the default plugin these sets are chained.
 The `Sample` phase itself runs in this order:
 
 1. spawn missing render entities
-2. refresh the active camera view state
-3. sync source configuration and append or prune points
+2. refresh the active `Camera3d` snapshot
+3. resolve each trail's view source, sync source configuration, and append or prune points
 4. tick orphaned render instances whose source despawned
 
 This guarantees that when `BuildMesh` runs in the same frame, it sees a complete and stable history buffer.
 
 ## Orientation Modes
 
+## View Source Resolution
+
+Every trail resolves a `TrailViewSource` before LOD, billboard rebuilding, and debug-normal reconstruction run.
+
+- `TrailViewSource::ActiveCamera3d` uses the current lowest-order active `Camera3d`
+- `TrailViewSource::Entity(entity)` uses that entity's world transform directly
+
+The resolved view is cached on the render instance so the runtime can detect per-trail view changes even when different trails follow different cameras or view anchors.
+
 ### `TrailOrientation::Billboard`
 
 The ribbon width axis is computed from:
 
 - the local tangent of the sampled polyline
-- the active camera position, transformed into trail space when needed
+- the resolved view position, transformed into trail space when needed
 
 The side vector is `tangent x view_direction`. If that degenerates, the runtime falls back to the source's local up axis projected onto the plane orthogonal to the tangent.
 
@@ -166,7 +175,7 @@ A trail becomes dirty when:
 - its configuration changed
 - it uses a non-constant `alpha_over_age` curve and live points are still aging
 - its source despawned and the decay tail is still shrinking
-- its orientation is billboarded and the active camera changed
+- its orientation is billboarded and the resolved view changed
 
 If none of those conditions apply, the mesh is left alone.
 
@@ -255,13 +264,17 @@ This escape hatch allows advanced users to use custom shaders, animated material
 
 The optional `TrailLod` component enables distance-based point count reduction.
 
-Each frame, the system computes the distance between the trail source and the active camera. This distance is used to linearly interpolate the effective `max_points`:
+Each frame, the system computes the distance between the trail source and the resolved `TrailViewSource`. This distance is used to linearly interpolate the effective `max_points`:
 
 ```
-effective_max_points = lerp(trail.max_points, lod.min_points, distance / lod.max_distance)
+effective_max_points = lerp(
+    trail.max_points,
+    trail.max_points * lod.min_points_fraction,
+    (distance - lod.start_distance) / (lod.end_distance - lod.start_distance),
+)
 ```
 
-Clamped so that it never exceeds `trail.max_points` or drops below `lod.min_points`.
+Clamped so that it never exceeds `trail.max_points` or drops below the configured fraction floor.
 
 When the effective max is lower than the current point count, excess points are trimmed from the oldest end. This reduces vertex count for far-away trails where detail is not visible.
 

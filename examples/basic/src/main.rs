@@ -36,7 +36,7 @@ fn setup(
             .with_emitter_mode(TrailEmitterMode::Always)
             .with_style(TrailStyle {
                 base_width: 0.45,
-                ..default()
+                ..common::showcase_trail_style()
             }),
         Mesh3d(meshes.add(Sphere::new(0.28).mesh().uv(20, 12))),
         MeshMaterial3d(common::glow_material(

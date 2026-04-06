@@ -66,7 +66,7 @@ fn setup(
                         emissive: LinearRgba::rgb(0.75, 0.28, 0.08),
                         ..default()
                     },
-                    ..default()
+                    ..common::showcase_trail_style()
                 }),
             Mesh3d(meshes.add(Sphere::new(0.16).mesh().uv(18, 12))),
             MeshMaterial3d(common::glow_material(
@@ -90,7 +90,7 @@ fn setup(
                         emissive: LinearRgba::rgb(0.18, 0.45, 0.7),
                         ..default()
                     },
-                    ..default()
+                    ..common::showcase_trail_style()
                 }),
             Mesh3d(meshes.add(Sphere::new(0.16).mesh().uv(18, 12))),
             MeshMaterial3d(common::glow_material(

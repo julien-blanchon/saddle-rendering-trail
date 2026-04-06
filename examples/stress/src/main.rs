@@ -49,7 +49,7 @@ fn setup(
                 .with_lifetime_secs(0.8)
                 .with_style(TrailStyle {
                     base_width: 0.14,
-                    ..TrailStyle::default()
+                    ..common::showcase_trail_style()
                 }),
             Mesh3d(meshes.add(Sphere::new(0.08).mesh().uv(10, 6))),
             MeshMaterial3d(common::glow_material(

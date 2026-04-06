@@ -10,6 +10,7 @@ pub struct Trail {
     pub emitter_mode: TrailEmitterMode,
     pub space: TrailSpace,
     pub orientation: TrailOrientation,
+    pub view_source: TrailViewSource,
     pub mesh_mode: TrailMeshMode,
     pub lifetime_secs: f32,
     pub min_sample_distance: f32,
@@ -27,6 +28,7 @@ impl Default for Trail {
             emitter_mode: TrailEmitterMode::WhenMoving,
             space: TrailSpace::World,
             orientation: TrailOrientation::Billboard,
+            view_source: TrailViewSource::ActiveCamera3d,
             mesh_mode: TrailMeshMode::Ribbon,
             lifetime_secs: 0.9,
             min_sample_distance: 0.18,
@@ -50,6 +52,18 @@ impl Trail {
     #[must_use]
     pub fn with_orientation(mut self, orientation: TrailOrientation) -> Self {
         self.orientation = orientation;
+        self
+    }
+
+    #[must_use]
+    pub fn with_view_source(mut self, view_source: TrailViewSource) -> Self {
+        self.view_source = view_source;
+        self
+    }
+
+    #[must_use]
+    pub fn with_view_entity(mut self, entity: Entity) -> Self {
+        self.view_source = TrailViewSource::Entity(entity);
         self
     }
 
@@ -94,7 +108,7 @@ impl Default for TrailDebugSettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            draw_points: true,
+            draw_points: false,
             draw_segments: true,
             draw_normals: false,
             draw_bounds: false,
@@ -122,16 +136,9 @@ impl Default for TrailStyle {
     fn default() -> Self {
         Self {
             base_width: 0.35,
-            width_over_length: TrailScalarCurve::linear(0.45, 1.0),
-            color_over_length: TrailGradient::new([
-                TrailColorKey::new(0.0, Color::srgb(0.65, 0.72, 1.0)),
-                TrailColorKey::new(1.0, Color::srgb(1.0, 1.0, 1.0)),
-            ]),
-            alpha_over_length: TrailScalarCurve::new([
-                TrailScalarKey::new(0.0, 0.0),
-                TrailScalarKey::new(0.15, 0.35),
-                TrailScalarKey::new(1.0, 1.0),
-            ]),
+            width_over_length: TrailScalarCurve::constant(1.0),
+            color_over_length: TrailGradient::constant(Color::WHITE),
+            alpha_over_length: TrailScalarCurve::constant(1.0),
             alpha_over_age: TrailScalarCurve::constant(1.0),
             fade_mode: TrailFadeMode::Alpha,
             uv_mode: TrailUvMode::Stretch,
@@ -225,6 +232,13 @@ pub enum TrailSpace {
     #[default]
     World,
     Local,
+}
+
+#[derive(Clone, Copy, Debug, Default, Reflect, PartialEq, Eq)]
+pub enum TrailViewSource {
+    #[default]
+    ActiveCamera3d,
+    Entity(Entity),
 }
 
 /// Controls how the trail visually fades out over its length and age.
@@ -489,6 +503,7 @@ pub(crate) struct TrailRenderInstance {
     pub mesh: Handle<Mesh>,
     pub material: Handle<StandardMaterial>,
     pub config: Trail,
+    pub view_state: crate::TrailViewState,
     pub history: crate::sampling::TrailBuffer,
     pub source_missing: bool,
     pub dirty: bool,

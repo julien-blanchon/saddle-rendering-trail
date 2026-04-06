@@ -6,8 +6,9 @@ use bevy::{
 };
 
 use crate::{
-    Trail, TrailDiagnostics, TrailEmitterMode, TrailOrientation, TrailPlugin, TrailScalarCurve,
-    components::TrailSourceLink,
+    Trail, TrailDiagnostics, TrailEmitterMode, TrailLod, TrailOrientation, TrailPlugin,
+    TrailScalarCurve, TrailViewSource,
+    components::{TrailRenderInstance, TrailSourceLink},
 };
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
@@ -316,4 +317,129 @@ fn billboard_trails_rebuild_when_camera_changes() {
             .total_mesh_rebuilds
             > initial
     );
+}
+
+#[test]
+fn explicit_view_source_ignores_auto_camera_motion() {
+    let mut app = init_app();
+    let auto_camera = app
+        .world_mut()
+        .spawn((
+            Name::new("Auto Camera"),
+            Camera3d::default(),
+            Camera::default(),
+            Transform::from_xyz(0.0, 2.0, 5.0),
+            GlobalTransform::default(),
+        ))
+        .id();
+    let explicit_camera = app
+        .world_mut()
+        .spawn((
+            Name::new("Explicit View Camera"),
+            Camera3d::default(),
+            Camera {
+                is_active: false,
+                order: 10,
+                ..default()
+            },
+            Transform::from_xyz(0.0, 2.0, 5.0),
+            GlobalTransform::default(),
+        ))
+        .id();
+    let source = spawn_source(
+        &mut app,
+        Trail::default()
+            .with_lifetime_secs(10.0)
+            .with_view_source(TrailViewSource::Entity(explicit_camera)),
+    );
+
+    app.world_mut().run_schedule(Activate);
+    run_tick(&mut app);
+    set_source_x(&mut app, source, 0.6);
+    run_tick(&mut app);
+
+    let rebuilds_before_auto_move = app
+        .world()
+        .resource::<TrailDiagnostics>()
+        .total_mesh_rebuilds;
+    if let Some(mut transform) = app.world_mut().get_mut::<Transform>(auto_camera) {
+        transform.translation.x += 1.0;
+    }
+    run_tick(&mut app);
+
+    assert_eq!(
+        app.world()
+            .resource::<TrailDiagnostics>()
+            .total_mesh_rebuilds,
+        rebuilds_before_auto_move
+    );
+
+    if let Some(mut transform) = app.world_mut().get_mut::<Transform>(explicit_camera) {
+        transform.translation.x += 1.0;
+    }
+    run_tick(&mut app);
+
+    assert!(
+        app.world()
+            .resource::<TrailDiagnostics>()
+            .total_mesh_rebuilds
+            > rebuilds_before_auto_move
+    );
+}
+
+#[test]
+fn explicit_view_source_drives_lod() {
+    let mut app = init_app();
+    app.world_mut().spawn((
+        Name::new("Auto Camera"),
+        Camera3d::default(),
+        Camera::default(),
+        Transform::from_xyz(0.0, 1.0, 0.1),
+        GlobalTransform::default(),
+    ));
+    let explicit_view = app
+        .world_mut()
+        .spawn((
+            Name::new("Far View Source"),
+            Transform::from_xyz(0.0, 1.0, 40.0),
+            GlobalTransform::default(),
+        ))
+        .id();
+    let source = app
+        .world_mut()
+        .spawn((
+            Name::new("Trail Source"),
+            Trail {
+                emitter_mode: TrailEmitterMode::Always,
+                max_points: 8,
+                lifetime_secs: 10.0,
+                view_source: TrailViewSource::Entity(explicit_view),
+                ..default()
+            },
+            TrailLod {
+                start_distance: 5.0,
+                end_distance: 10.0,
+                min_points_fraction: 0.25,
+            },
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            GlobalTransform::default(),
+        ))
+        .id();
+
+    app.world_mut().run_schedule(Activate);
+    for frame in 0..6 {
+        set_source_x(&mut app, source, frame as f32 * 0.5);
+        run_tick(&mut app);
+    }
+
+    let render_entity = render_entity_for(&app, source);
+    let point_count = app
+        .world()
+        .get::<TrailRenderInstance>(render_entity)
+        .expect("trail render instance should exist")
+        .history
+        .points
+        .len();
+
+    assert_eq!(point_count, 2);
 }

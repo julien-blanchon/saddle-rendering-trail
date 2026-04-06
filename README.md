@@ -71,19 +71,37 @@ app.add_plugins(TrailPlugin::new(
 
 `TrailPlugin::default()` is the always-on form and internally maps to `PostStartup`, a no-op deactivate schedule, and `Update`.
 
+Billboarding and `TrailLod` use the resolved trail view source. By default that is the
+lowest-order active `Camera3d`, but you can override it per trail:
+
+```rust
+let camera = commands
+    .spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 3.5, 8.0),
+    ))
+    .id();
+
+commands.spawn((
+    Trail::default().with_view_entity(camera),
+    Transform::default(),
+));
+```
+
 ## Public API
 
 | Type | Purpose |
 |------|---------|
 | `TrailPlugin` | Registers the runtime with injectable activate, deactivate, and update schedules |
 | `TrailSystems` | Public ordering hooks for sampling, mesh rebuilds, cleanup, diagnostics, and optional debug drawing |
-| `Trail` | Per-source sampling, lifetime, reset, cleanup, orientation, and mesh mode configuration |
+| `Trail` | Per-source sampling, lifetime, reset, cleanup, orientation, view-source, and mesh mode configuration |
 | `TrailStyle` | Width, color, alpha, UV, fade mode, scroll speed, and material configuration |
 | `TrailMaterial` | StandardMaterial-backed appearance settings for the spawned render entity |
 | `TrailCustomMaterial` | Optional component to override the auto-generated material with a user-provided handle |
 | `TrailEmitterMode` | `Always`, `WhenMoving`, or `Disabled` sampling behavior |
 | `TrailSpace` | `World` or `Local` point storage and mesh-space behavior |
 | `TrailOrientation` | `Billboard` or transform-locked axis mode |
+| `TrailViewSource` | Uses the active `Camera3d` snapshot or an explicit entity transform for billboarding, LOD, and debug |
 | `TrailMeshMode` | `Ribbon` (flat strip) or `Tube { sides }` (cylindrical mesh) |
 | `TrailFadeMode` | `Alpha` (opacity fade), `Width` (shrink to nothing), or `Both` |
 | `TrailUvMode` | Stretch once over the full ribbon or repeat by traveled distance |
@@ -97,11 +115,13 @@ app.add_plugins(TrailPlugin::new(
 ## Supported
 
 - CPU-built ribbon meshes with rebuilds only when sampling, styling, camera state, or age-driven alpha requires new geometry
+- Neutral runtime defaults; showcase gradients and fades now live in example-side presets
 - **Ribbon and tube mesh modes** — flat two-vertex ribbon or cylindrical tube cross-sections
 - **Fade modes** — Alpha (opacity), Width (shrink to nothing), or Both simultaneously
 - **UV scroll** — continuous UV animation along the trail for flowing texture effects
 - **Custom materials** — attach `TrailCustomMaterial` to override the auto-generated material
-- **LOD** — attach `TrailLod` for distance-based point count reduction
+- **Explicit view sources** — use the shared active camera or pin a trail to a specific entity transform
+- **LOD** — attach `TrailLod` for distance-based point count reduction relative to the resolved view source
 - **Public sample points** — `TrailSamplePoint` exposed for user-defined modifier systems
 - World-space and local-space trails
 - Camera-facing billboard ribbons
@@ -155,6 +175,7 @@ cargo run -p saddle-rendering-trail-lab --features e2e -- trail_smoke
 cargo run -p saddle-rendering-trail-lab --features e2e -- trail_billboard
 cargo run -p saddle-rendering-trail-lab --features e2e -- trail_locked
 cargo run -p saddle-rendering-trail-lab --features e2e -- trail_reset
+cargo run -p saddle-rendering-trail-lab --features e2e -- trail_view_source
 ```
 
 For BRP inspection:

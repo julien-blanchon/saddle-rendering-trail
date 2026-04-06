@@ -12,6 +12,7 @@ Normalized age runs from newly emitted (`0.0`) to expired (`1.0`).
 | `emitter_mode` | `TrailEmitterMode` | `WhenMoving` | enum | Chooses whether the source emits always, only while moving, or never | `Always` can append more points for slow movers because the max-interval path stays active |
 | `space` | `TrailSpace` | `World` | enum | Leaves residue in world space or keeps the ribbon in the source parent space | `Local` needs an extra camera-to-local conversion in billboard mode, but the cost is negligible compared with rebuilds |
 | `orientation` | `TrailOrientation` | `Billboard` | enum | Faces the ribbon to the camera or locks width orientation to a source-local axis | Billboard ribbons rebuild when the camera moves; transform-locked ribbons do not |
+| `view_source` | `TrailViewSource` | `ActiveCamera3d` | enum | Chooses which view transform drives billboarding, LOD, and debug normal reconstruction | Explicit entities avoid hidden dependence on whichever `Camera3d` currently wins active-camera selection |
 | `lifetime_secs` | `f32` | `0.9` | `> 0.0` | How long sampled points survive before pruning | Longer lifetimes keep more visible geometry and increase rebuild cost |
 | `min_sample_distance` | `f32` | `0.18` | `>= 0.0` | Minimum travel distance before a new point may be inserted | Smaller values produce smoother curves but more points |
 | `max_sample_interval_secs` | `f32` | `0.05` | `>= 0.0` | Forces new points for slow motion when enough time passes | Lower values increase sampling frequency on slow movers |
@@ -42,15 +43,25 @@ Normalized age runs from newly emitted (`0.0`) to expired (`1.0`).
 | `Billboard` | Readability from the camera matters most | Default for contrails and speed lines |
 | `TransformLocked { axis }` | The source should control ribbon roll and facing | Use an axis like `Vec3::Y` or `Vec3::Z` depending on how the source is authored |
 
+## `TrailViewSource`
+
+| Variant | Choose it when | Notes |
+|---------|----------------|-------|
+| `ActiveCamera3d` | You want the default shared-camera behavior | Resolves to the lowest-order active `Camera3d` each frame |
+| `Entity(Entity)` | You need billboarding and LOD to follow a specific camera or authored view anchor | Uses that entity's world transform even if it is not the active `Camera3d` |
+
 ## `TrailStyle`
+
+`TrailStyle::default()` is intentionally neutral: solid white, full alpha, and constant width.
+Showcase gradients, tail fades, and other authored looks now live in examples or user-authored presets.
 
 | Field | Type | Default | Expected range | Effect | Performance notes |
 |------|------|---------|----------------|--------|-------------------|
 | `base_width` | `f32` | `0.35` | `>= 0.0` | Base ribbon width before width-curve modulation | Wider trails increase the size of the generated bounds but not vertex count |
 | `fade_mode` | `TrailFadeMode` | `Alpha` | enum | How the trail fades from head to tail — opacity, width, or both | Width/Both fade modes apply alpha curves to the width computation, so the mesh itself narrows |
-| `width_over_length` | `TrailScalarCurve` | linear `0.45 -> 1.0` | keys in `0..1` | Multiplies width from tail to head | Cheap curve evaluation per point |
-| `color_over_length` | `TrailGradient` | pale blue to white | keys in `0..1` | Interpolates vertex color from tail to head | Cheap per-point linear interpolation |
-| `alpha_over_length` | `TrailScalarCurve` | tail fades in, head fully opaque | keys in `0..1` | Fades by position along the ribbon | Useful for soft tails |
+| `width_over_length` | `TrailScalarCurve` | constant `1.0` | keys in `0..1` | Multiplies width from tail to head | Cheap curve evaluation per point |
+| `color_over_length` | `TrailGradient` | solid white | keys in `0..1` | Interpolates vertex color from tail to head | Cheap per-point linear interpolation |
+| `alpha_over_length` | `TrailScalarCurve` | constant `1.0` | keys in `0..1` | Fades by position along the ribbon | Author a non-constant curve when you want a soft tail |
 | `alpha_over_age` | `TrailScalarCurve` | constant `1.0` | keys in `0..1` | Fades individual points as they age toward expiration | Non-constant curves rebuild while live points age, even if the source is otherwise stationary |
 | `uv_mode` | `TrailUvMode` | `Stretch` | enum | Controls how `u` advances along the ribbon | Repeat mode uses traveled distance accumulation but is still cheap |
 | `uv_scroll_speed` | `f32` | `0.0` | any | Continuous UV scroll along the trail in units per second | When non-zero the trail marks itself dirty every frame, increasing rebuild frequency |
@@ -131,10 +142,11 @@ Attach `TrailLod` to a trail source entity for distance-based level of detail.
 
 | Field | Type | Default | Expected range | Effect |
 |------|------|---------|----------------|--------|
-| `max_distance` | `f32` | `50.0` | `> 0.0` | Distance at which the trail drops to `min_points` |
-| `min_points` | `usize` | `4` | `>= 2` | Minimum point count at maximum distance |
+| `start_distance` | `f32` | `20.0` | `>= 0.0` | Distance at which point-count reduction begins |
+| `end_distance` | `f32` | `60.0` | `> start_distance` recommended | Distance at which the trail reaches minimum detail |
+| `min_points_fraction` | `f32` | `0.25` | `0.0..=1.0` recommended | Fraction of `Trail::max_points` retained at or beyond `end_distance` |
 
-The effective max-points is linearly interpolated between `Trail::max_points` (at distance 0) and `min_points` (at `max_distance`). Points beyond the camera distance are clamped to `min_points`. This reduces geometry for far-away trails without affecting close-up quality.
+The effective max-points is linearly interpolated between `Trail::max_points` (at or below `start_distance`) and `Trail::max_points × min_points_fraction` (at or beyond `end_distance`). The distance is measured against the trail's resolved `TrailViewSource`, not always the shared active camera.
 
 ## `TrailSamplePoint`
 
@@ -147,7 +159,7 @@ Debug drawing is only active when the app includes Bevy gizmos and `enabled = tr
 | Field | Type | Default | Effect |
 |------|------|---------|--------|
 | `enabled` | `bool` | `false` | Master toggle for all debug drawing |
-| `draw_points` | `bool` | `true` | Draws sampled points |
+| `draw_points` | `bool` | `false` | Draws sampled points |
 | `draw_segments` | `bool` | `true` | Draws the sampled centerline |
 | `draw_normals` | `bool` | `false` | Draws the width-direction helper at each point |
 | `draw_bounds` | `bool` | `false` | Draws the generated AABB extents |

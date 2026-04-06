@@ -49,7 +49,7 @@ fn setup(
                     emissive: LinearRgba::rgb(0.8, 0.4, 0.15),
                     ..default()
                 },
-                ..default()
+                ..common::showcase_trail_style()
             }),
         Mesh3d(meshes.add(Capsule3d::new(0.12, 0.4))),
         MeshMaterial3d(common::glow_material(

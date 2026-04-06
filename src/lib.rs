@@ -14,7 +14,7 @@ mod systems;
 pub use components::{
     Trail, TrailColorKey, TrailCustomMaterial, TrailDebugSettings, TrailEmitterMode, TrailFadeMode,
     TrailGradient, TrailLod, TrailMaterial, TrailMeshMode, TrailOrientation, TrailScalarCurve,
-    TrailScalarKey, TrailSpace, TrailStyle, TrailUvMode,
+    TrailScalarKey, TrailSpace, TrailStyle, TrailUvMode, TrailViewSource,
 };
 pub use resources::TrailDiagnostics;
 pub use sampling::SamplePoint as TrailSamplePoint;
@@ -101,6 +101,7 @@ impl Plugin for TrailPlugin {
             .register_type::<TrailSpace>()
             .register_type::<TrailStyle>()
             .register_type::<TrailUvMode>()
+            .register_type::<TrailViewSource>()
             .register_type::<TrailFadeMode>()
             .register_type::<TrailMeshMode>()
             .register_type::<TrailLod>()
@@ -158,6 +159,10 @@ impl Plugin for TrailPlugin {
 #[cfg(test)]
 #[path = "sampling_tests.rs"]
 mod sampling_tests;
+
+#[cfg(test)]
+#[path = "components_tests.rs"]
+mod components_tests;
 
 #[cfg(test)]
 #[path = "mesh_builder_tests.rs"]

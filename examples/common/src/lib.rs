@@ -3,6 +3,9 @@ use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
+use saddle_rendering_trail::{
+    TrailColorKey, TrailGradient, TrailScalarCurve, TrailScalarKey, TrailStyle,
+};
 
 pub const AUTO_EXIT_ENV: &str = "TRAIL_AUTO_EXIT_SECONDS";
 
@@ -129,6 +132,22 @@ pub fn glow_material(
         unlit: false,
         ..default()
     })
+}
+
+pub fn showcase_trail_style() -> TrailStyle {
+    TrailStyle {
+        width_over_length: TrailScalarCurve::linear(0.45, 1.0),
+        color_over_length: TrailGradient::new([
+            TrailColorKey::new(0.0, Color::srgb(0.65, 0.72, 1.0)),
+            TrailColorKey::new(1.0, Color::srgb(1.0, 1.0, 1.0)),
+        ]),
+        alpha_over_length: TrailScalarCurve::new([
+            TrailScalarKey::new(0.0, 0.0),
+            TrailScalarKey::new(0.15, 0.35),
+            TrailScalarKey::new(1.0, 1.0),
+        ]),
+        ..default()
+    }
 }
 
 fn auto_exit_after(

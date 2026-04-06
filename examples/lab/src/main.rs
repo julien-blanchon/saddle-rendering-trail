@@ -168,6 +168,7 @@ fn setup(
                 speed: 1.25,
             },
             Trail::default()
+                .with_view_entity(camera)
                 .with_emitter_mode(TrailEmitterMode::Always)
                 .with_style(TrailStyle {
                     base_width: 0.2,
@@ -178,7 +179,7 @@ fn setup(
                         emissive: LinearRgba::rgb(0.8, 0.35, 0.12),
                         ..default()
                     },
-                    ..default()
+                    ..common::showcase_trail_style()
                 }),
             Mesh3d(meshes.add(Capsule3d::new(0.12, 0.4))),
             MeshMaterial3d(common::glow_material(
@@ -198,6 +199,7 @@ fn setup(
                 speed: 1.45,
             },
             Trail::default()
+                .with_view_entity(camera)
                 .with_lifetime_secs(0.35)
                 .with_orientation(TrailOrientation::TransformLocked { axis: Vec3::Y })
                 .with_style(TrailStyle {
@@ -249,6 +251,7 @@ fn setup(
                         speed: 0.9,
                     },
                     Trail::default()
+                        .with_view_entity(camera)
                         .with_emitter_mode(TrailEmitterMode::Always)
                         .with_lifetime_secs(1.35)
                         .with_space(TrailSpace::Local)
@@ -259,7 +262,7 @@ fn setup(
                                 base_color: Color::srgb(0.45, 0.9, 1.0),
                                 ..default()
                             },
-                            ..default()
+                            ..common::showcase_trail_style()
                         }),
                     Mesh3d(meshes.add(Torus::new(0.35, 0.11))),
                     MeshMaterial3d(common::glow_material(
@@ -283,6 +286,7 @@ fn setup(
                 timer: Timer::from_seconds(0.95, TimerMode::Repeating),
             },
             Trail::default()
+                .with_view_entity(camera)
                 .with_emitter_mode(TrailEmitterMode::Always)
                 .with_lifetime_secs(0.9)
                 .with_style(TrailStyle {
@@ -293,7 +297,7 @@ fn setup(
                         emissive: LinearRgba::rgb(0.9, 0.22, 0.55),
                         ..default()
                     },
-                    ..default()
+                    ..common::showcase_trail_style()
                 }),
             Mesh3d(meshes.add(Sphere::new(0.18).mesh().uv(18, 10))),
             MeshMaterial3d(common::glow_material(

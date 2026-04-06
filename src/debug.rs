@@ -1,7 +1,9 @@
 use bevy::{camera::primitives::Aabb, prelude::*};
 
 use crate::{
-    TrailDebugSettings, components::TrailRenderInstance, mesh_builder::build_mesh,
+    TrailDebugSettings,
+    components::TrailRenderInstance,
+    mesh_builder::{build_mesh, camera_position_for_space},
     resources::TrailDiagnostics,
 };
 
@@ -32,11 +34,13 @@ pub(crate) fn draw_debug(
         }
 
         if debug.draw_normals {
-            let camera_position = render_transform.translation + Vec3::new(0.0, 1.0, 4.0);
+            let camera_position = instance.view_state.camera_position.map(|position| {
+                camera_position_for_space(instance.config.space, render_transform, position)
+            });
             let buffers = build_mesh(
                 &instance.history.points,
                 &instance.config,
-                Some(camera_position),
+                camera_position,
                 0.0,
             );
             for segment in buffers.positions.chunks_exact(2) {
