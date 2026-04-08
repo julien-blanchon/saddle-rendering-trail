@@ -153,19 +153,19 @@ fn setup(
 fn magic_orb_effect() -> EffectAsset {
     let writer = ExprWriter::new();
     let age = writer.lit(0.0).expr();
-    let lifetime = writer.lit(0.6).expr();
+    let lifetime = writer.lit(0.8).expr();
     let drag = writer.lit(2.0).expr();
     let init_pos = SetPositionSphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        radius: writer.lit(0.15).expr(),
+        radius: writer.lit(0.25).expr(),
         dimension: ShapeDimension::Volume,
     };
     let init_vel = SetVelocitySphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        speed: writer.lit(1.5).expr(),
+        speed: writer.lit(2.5).expr(),
     };
 
-    EffectAsset::new(256, SpawnerSettings::rate(60.0.into()), writer.finish())
+    EffectAsset::new(512, SpawnerSettings::rate(150.0.into()), writer.finish())
         .with_name("magic_orb_sparks")
         .init(init_pos)
         .init(init_vel)
@@ -173,30 +173,30 @@ fn magic_orb_effect() -> EffectAsset {
         .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
         .update(LinearDragModifier::new(drag))
         .render(SetColorModifier::new(CpuValue::Uniform((
-            Vec4::new(0.4, 0.15, 0.9, 1.0),
-            Vec4::new(0.7, 0.4, 1.0, 1.0),
+            Vec4::new(0.5, 0.2, 1.0, 1.0),
+            Vec4::new(0.9, 0.6, 1.0, 1.0),
         ))))
         .render(SetSizeModifier {
-            size: CpuValue::Uniform((Vec3::splat(0.02), Vec3::splat(0.06))),
+            size: CpuValue::Uniform((Vec3::splat(0.06), Vec3::splat(0.14))),
         })
 }
 
 fn sword_ember_effect() -> EffectAsset {
     let writer = ExprWriter::new();
     let age = writer.lit(0.0).expr();
-    let lifetime = writer.lit(0.45).expr();
+    let lifetime = writer.lit(0.6).expr();
     let init_pos = SetPositionSphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        radius: writer.lit(0.3).expr(),
+        radius: writer.lit(0.4).expr(),
         dimension: ShapeDimension::Surface,
     };
     let init_vel = SetVelocitySphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        speed: writer.lit(2.5).expr(),
+        speed: writer.lit(3.5).expr(),
     };
-    let gravity = AccelModifier::new(writer.lit(Vec3::new(0.0, -4.0, 0.0)).expr());
+    let gravity = AccelModifier::new(writer.lit(Vec3::new(0.0, -5.0, 0.0)).expr());
 
-    EffectAsset::new(512, SpawnerSettings::rate(120.0.into()), writer.finish())
+    EffectAsset::new(1024, SpawnerSettings::rate(250.0.into()), writer.finish())
         .with_name("sword_embers")
         .init(init_pos)
         .init(init_vel)
@@ -204,11 +204,11 @@ fn sword_ember_effect() -> EffectAsset {
         .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
         .update(gravity)
         .render(SetColorModifier::new(CpuValue::Uniform((
-            Vec4::new(1.0, 0.3, 0.05, 1.0),
-            Vec4::new(1.0, 0.7, 0.2, 1.0),
+            Vec4::new(1.0, 0.4, 0.05, 1.0),
+            Vec4::new(1.0, 0.8, 0.3, 1.0),
         ))))
         .render(SetSizeModifier {
-            size: CpuValue::Uniform((Vec3::splat(0.01), Vec3::splat(0.04))),
+            size: CpuValue::Uniform((Vec3::splat(0.04), Vec3::splat(0.10))),
         })
 }
 
