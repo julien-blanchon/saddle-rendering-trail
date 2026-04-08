@@ -34,11 +34,13 @@ fn lifetime_expiration_prunes_old_points() {
         position: Vec3::ZERO,
         rotation: Quat::IDENTITY,
         age_secs: 0.95,
+        ..Default::default()
     });
     buffer.points.push(crate::sampling::SamplePoint {
         position: Vec3::X,
         rotation: Quat::IDENTITY,
         age_secs: 0.2,
+        ..Default::default()
     });
 
     let changed = buffer.advance(0.1, 1.0, 8);
@@ -73,16 +75,19 @@ fn normalized_length_evaluation_tracks_path_progress() {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             age_secs: 0.0,
+            ..Default::default()
         },
         crate::sampling::SamplePoint {
             position: Vec3::X,
             rotation: Quat::IDENTITY,
             age_secs: 0.0,
+            ..Default::default()
         },
         crate::sampling::SamplePoint {
             position: Vec3::new(3.0, 0.0, 0.0),
             rotation: Quat::IDENTITY,
             age_secs: 0.0,
+            ..Default::default()
         },
     ];
 

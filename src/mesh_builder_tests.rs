@@ -12,16 +12,19 @@ fn sample_points() -> Vec<SamplePoint> {
             position: Vec3::new(0.0, 0.0, 0.0),
             rotation: Quat::IDENTITY,
             age_secs: 0.9,
+            ..Default::default()
         },
         SamplePoint {
             position: Vec3::new(1.0, 0.0, 0.0),
             rotation: Quat::IDENTITY,
             age_secs: 0.4,
+            ..Default::default()
         },
         SamplePoint {
             position: Vec3::new(2.0, 0.0, 0.0),
             rotation: Quat::IDENTITY,
             age_secs: 0.1,
+            ..Default::default()
         },
     ]
 }
@@ -34,6 +37,7 @@ fn mesh_builder_generates_expected_vertex_and_index_counts() {
         &trail,
         Some(Vec3::new(0.0, 2.0, 3.0)),
         0.0,
+        &mut Vec::new(),
     );
 
     assert_eq!(buffers.positions.len(), 6);
@@ -52,6 +56,7 @@ fn repeat_uv_mode_advances_by_distance() {
         &trail,
         Some(Vec3::new(0.0, 2.0, 3.0)),
         0.0,
+        &mut Vec::new(),
     );
     assert_eq!(buffers.uvs[0][0], 0.0);
     assert_eq!(buffers.uvs[2][0], 2.0);
@@ -68,7 +73,7 @@ fn transform_locked_mode_uses_sampled_rotation_axis() {
         ..default()
     };
 
-    let buffers = build_mesh(&points, &trail, None, 0.0);
+    let buffers = build_mesh(&points, &trail, None, 0.0, &mut Vec::new());
     let left = Vec3::from_array(buffers.positions[2]);
     let right = Vec3::from_array(buffers.positions[3]);
     assert!(left.y.abs() > 0.1 || right.y.abs() > 0.1);
@@ -93,12 +98,14 @@ fn uv_scroll_offset_shifts_coordinates() {
         &trail,
         Some(Vec3::new(0.0, 2.0, 3.0)),
         0.0,
+        &mut Vec::new(),
     );
     let with_scroll = build_mesh(
         &sample_points(),
         &trail,
         Some(Vec3::new(0.0, 2.0, 3.0)),
         1.5,
+        &mut Vec::new(),
     );
 
     assert!(!without_scroll.uvs.is_empty());
@@ -119,6 +126,7 @@ fn tube_mode_generates_ring_vertices() {
         &trail,
         Some(Vec3::new(0.0, 2.0, 3.0)),
         0.0,
+        &mut Vec::new(),
     );
 
     // 3 points × 6 sides = 18 vertices
@@ -140,6 +148,7 @@ fn width_fade_mode_shrinks_width_at_tail() {
         &trail,
         Some(Vec3::new(0.0, 2.0, 3.0)),
         0.0,
+        &mut Vec::new(),
     );
     // Tail (index 0) should have zero-ish width, head should be wider.
     // With Width fade, the tail width = base_width * width_curve * alpha → near 0.

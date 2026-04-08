@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use bevy::{
     app::PostStartup,
     ecs::{intern::Interned, schedule::ScheduleLabel},
@@ -6,6 +8,7 @@ use bevy::{
 
 mod components;
 mod debug;
+mod events;
 mod mesh_builder;
 mod resources;
 mod sampling;
@@ -13,15 +16,21 @@ mod systems;
 
 pub use components::{
     Trail, TrailColorKey, TrailCustomMaterial, TrailDebugSettings, TrailEmitterMode, TrailFadeMode,
-    TrailGradient, TrailLod, TrailMaterial, TrailMeshMode, TrailOrientation, TrailScalarCurve,
-    TrailScalarKey, TrailSpace, TrailStyle, TrailUvMode, TrailViewSource,
+    TrailGradient, TrailHistory, TrailLod, TrailMaterial, TrailMaterial3d, TrailMeshMode,
+    TrailOrientation, TrailScalarCurve, TrailScalarKey, TrailSourceLink, TrailSpace, TrailStyle,
+    TrailStyleOverride, TrailUvMode, TrailViewSource,
 };
+pub use events::{TrailEmissionStarted, TrailFullyFaded, TrailOrphaned, TrailReset};
 pub use resources::TrailDiagnostics;
 pub use sampling::SamplePoint as TrailSamplePoint;
 
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum TrailSystems {
+    /// Point sampling: spawn render entities, read transforms, emit new points.
     Sample,
+    /// Empty slot for user modifier systems that read/write [`TrailHistory`].
+    Modify,
+    /// Mesh generation from the current point buffer.
     BuildMesh,
     Cleanup,
     Diagnostics,
@@ -105,12 +114,16 @@ impl Plugin for TrailPlugin {
             .register_type::<TrailFadeMode>()
             .register_type::<TrailMeshMode>()
             .register_type::<TrailLod>()
+            .register_type::<TrailHistory>()
+            .register_type::<TrailStyleOverride>()
+            .register_type::<sampling::SamplePoint>()
             .add_systems(self.activate_schedule, systems::activate_runtime)
             .add_systems(self.deactivate_schedule, systems::deactivate_runtime)
             .configure_sets(
                 self.update_schedule,
                 (
                     TrailSystems::Sample,
+                    TrailSystems::Modify,
                     TrailSystems::BuildMesh,
                     TrailSystems::Cleanup,
                     TrailSystems::Diagnostics,
@@ -131,7 +144,10 @@ impl Plugin for TrailPlugin {
                     .run_if(systems::runtime_is_active)
                     .chain()
                     .in_set(TrailSystems::Sample),
-                systems::rebuild_dirty_meshes.in_set(TrailSystems::BuildMesh),
+                systems::sync_history_mutations.in_set(TrailSystems::BuildMesh),
+                systems::rebuild_dirty_meshes
+                    .after(systems::sync_history_mutations)
+                    .in_set(TrailSystems::BuildMesh),
                 (
                     systems::handle_removed_sources,
                     systems::cleanup_dead_instances,
@@ -153,6 +169,54 @@ impl Plugin for TrailPlugin {
                     .in_set(TrailSystems::Debug),
             );
         }
+    }
+}
+
+/// Plugin extension for custom material types. Add after [`TrailPlugin`]
+/// for each custom material type you use.
+///
+/// ```rust,ignore
+/// app.add_plugins(TrailPlugin::default());
+/// app.add_plugins(TrailMaterialPlugin::<MyMaterial>::new(Update));
+/// ```
+pub struct TrailMaterialPlugin<M: Material> {
+    update_schedule: Interned<dyn ScheduleLabel>,
+    _marker: PhantomData<M>,
+}
+
+impl<M: Material> TrailMaterialPlugin<M> {
+    #[must_use]
+    pub fn new(update_schedule: impl ScheduleLabel) -> Self {
+        Self {
+            update_schedule: update_schedule.intern(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<M: Material> Plugin for TrailMaterialPlugin<M> {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            self.update_schedule,
+            sync_trail_material::<M>
+                .after(TrailSystems::Sample)
+                .before(TrailSystems::BuildMesh),
+        );
+    }
+}
+
+fn sync_trail_material<M: Material>(
+    sources: Query<
+        (&TrailSourceLink, &TrailMaterial3d<M>),
+        Changed<TrailMaterial3d<M>>,
+    >,
+    mut commands: Commands,
+) {
+    for (link, material) in &sources {
+        commands
+            .entity(link.render_entity)
+            .insert(MeshMaterial3d(material.0.clone()))
+            .remove::<MeshMaterial3d<StandardMaterial>>();
     }
 }
 

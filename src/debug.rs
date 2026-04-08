@@ -8,16 +8,29 @@ use crate::{
 };
 
 pub(crate) fn draw_debug(
-    debug: Res<TrailDebugSettings>,
+    global_debug: Res<TrailDebugSettings>,
     diagnostics: Res<TrailDiagnostics>,
     instances: Query<(&TrailRenderInstance, &Transform, Option<&Aabb>)>,
+    per_entity_debug: Query<&TrailDebugSettings, Without<TrailRenderInstance>>,
     mut gizmos: Gizmos,
 ) {
-    if !debug.enabled || diagnostics.active_render_entities == 0 {
+    if diagnostics.active_render_entities == 0 {
+        return;
+    }
+
+    if !global_debug.enabled && per_entity_debug.is_empty() {
         return;
     }
 
     for (instance, render_transform, aabb) in &instances {
+        let debug = per_entity_debug
+            .get(instance.source)
+            .unwrap_or(&global_debug);
+
+        if !debug.enabled {
+            continue;
+        }
+
         if debug.draw_points {
             for point in &instance.history.points {
                 let world = render_transform.transform_point(point.position);
@@ -37,11 +50,13 @@ pub(crate) fn draw_debug(
             let camera_position = instance.view_state.camera_position.map(|position| {
                 camera_position_for_space(instance.config.space, render_transform, position)
             });
+            let mut scratch = Vec::new();
             let buffers = build_mesh(
                 &instance.history.points,
                 &instance.config,
                 camera_position,
                 0.0,
+                &mut scratch,
             );
             for segment in buffers.positions.chunks_exact(2) {
                 let left = render_transform.transform_point(Vec3::from_array(segment[0]));

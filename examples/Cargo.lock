@@ -4458,6 +4458,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "saddle-rendering-trail-example-custom-material"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "saddle-rendering-trail",
+ "saddle-rendering-trail-example-common",
+]
+
+[[package]]
 name = "saddle-rendering-trail-example-drawing-trail"
 version = "0.1.0"
 dependencies = [
@@ -4487,6 +4496,15 @@ dependencies = [
 
 [[package]]
 name = "saddle-rendering-trail-example-melee-swipe"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "saddle-rendering-trail",
+ "saddle-rendering-trail-example-common",
+]
+
+[[package]]
+name = "saddle-rendering-trail-example-modifier"
 version = "0.1.0"
 dependencies = [
  "bevy",

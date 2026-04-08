@@ -1,12 +1,31 @@
-use bevy::prelude::*;
+use bevy::{color::LinearRgba, prelude::*};
 
 use crate::{Trail, TrailEmitterMode};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 pub struct SamplePoint {
     pub position: Vec3,
     pub rotation: Quat,
     pub age_secs: f32,
+    /// If set, overrides the width computed from curves for this point.
+    pub custom_width: Option<f32>,
+    /// If set, overrides the color computed from curves for this point.
+    pub custom_color: Option<LinearRgba>,
+    /// User-defined velocity or any Vec3 data. Not used by the trail system.
+    pub velocity: Vec3,
+}
+
+impl Default for SamplePoint {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            age_secs: 0.0,
+            custom_width: None,
+            custom_color: None,
+            velocity: Vec3::ZERO,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -60,6 +79,7 @@ impl TrailBuffer {
             position,
             rotation,
             age_secs: 0.0,
+            ..Default::default()
         };
 
         let Some(last) = self.points.last().copied() else {
@@ -128,6 +148,34 @@ pub(crate) fn total_length(points: &[SamplePoint]) -> f32 {
         .windows(2)
         .map(|pair| pair[0].position.distance(pair[1].position))
         .sum()
+}
+
+pub(crate) fn normalized_lengths_into(points: &[SamplePoint], out: &mut Vec<f32>) {
+    out.clear();
+    if points.is_empty() {
+        return;
+    }
+    if points.len() == 1 {
+        out.push(1.0);
+        return;
+    }
+    out.reserve(points.len());
+    out.push(0.0);
+    for pair in points.windows(2) {
+        let next =
+            out.last().copied().unwrap_or_default() + pair[0].position.distance(pair[1].position);
+        out.push(next);
+    }
+    let total = *out.last().unwrap_or(&0.0);
+    if total <= f32::EPSILON {
+        out.clear();
+        out.extend(std::iter::repeat_n(0.0, points.len() - 1));
+        out.push(1.0);
+        return;
+    }
+    for v in out.iter_mut() {
+        *v /= total;
+    }
 }
 
 pub(crate) fn normalized_lengths(points: &[SamplePoint]) -> Vec<f32> {

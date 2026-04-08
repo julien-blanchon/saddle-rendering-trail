@@ -11,6 +11,8 @@ members = [
     "fade_modes",
     "drawing_trail",
     "magic_trail",
+    "modifier",
+    "custom_material",
     "lab",
 ]
 resolver = "3"

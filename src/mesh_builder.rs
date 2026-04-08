@@ -8,7 +8,7 @@ use bevy::{
 
 use crate::{
     Trail, TrailFadeMode, TrailMeshMode, TrailOrientation, TrailSpace, TrailUvMode,
-    sampling::{SamplePoint, normalized_lengths},
+    sampling::{SamplePoint, normalized_lengths_into},
 };
 
 #[derive(Debug, Default)]
@@ -27,6 +27,7 @@ pub(crate) fn build_mesh(
     trail: &Trail,
     camera_position_in_trail_space: Option<Vec3>,
     uv_scroll_offset: f32,
+    scratch_lengths: &mut Vec<f32>,
 ) -> TrailMeshBuffers {
     match trail.mesh_mode {
         TrailMeshMode::Ribbon => build_ribbon_mesh(
@@ -34,6 +35,7 @@ pub(crate) fn build_mesh(
             trail,
             camera_position_in_trail_space,
             uv_scroll_offset,
+            scratch_lengths,
         ),
         TrailMeshMode::Tube { sides } => build_tube_mesh(
             points,
@@ -41,6 +43,7 @@ pub(crate) fn build_mesh(
             camera_position_in_trail_space,
             sides.max(3),
             uv_scroll_offset,
+            scratch_lengths,
         ),
     }
 }
@@ -50,13 +53,15 @@ fn build_ribbon_mesh(
     trail: &Trail,
     camera_position_in_trail_space: Option<Vec3>,
     uv_scroll_offset: f32,
+    scratch_lengths: &mut Vec<f32>,
 ) -> TrailMeshBuffers {
     if points.len() < 2 {
         return TrailMeshBuffers::default();
     }
 
     let mut buffers = TrailMeshBuffers::default();
-    let normalized = normalized_lengths(points);
+    normalized_lengths_into(points, scratch_lengths);
+    let normalized = &*scratch_lengths;
     let total_length = crate::sampling::total_length(points);
     if total_length <= f32::EPSILON {
         return buffers;
@@ -74,7 +79,11 @@ fn build_ribbon_mesh(
         let tangent = tangent_at(points, index);
         let length_t = normalized[index];
         let age_t = (point.age_secs / trail.lifetime_secs.max(f32::EPSILON)).clamp(0.0, 1.0);
-        let half_width = compute_width_with_fade(trail, length_t, age_t) * 0.5;
+        let half_width = if let Some(w) = point.custom_width {
+            w * 0.5
+        } else {
+            compute_width_with_fade(trail, length_t, age_t) * 0.5
+        };
         if half_width <= f32::EPSILON {
             continue;
         }
@@ -82,7 +91,9 @@ fn build_ribbon_mesh(
         let normal = side.cross(tangent).normalize_or_zero();
         let left = point.position - side * half_width;
         let right = point.position + side * half_width;
-        let color = compute_color_with_fade(trail, length_t, age_t);
+        let color = point
+            .custom_color
+            .unwrap_or_else(|| compute_color_with_fade(trail, length_t, age_t));
         let u = compute_u(trail, length_t, accumulated_length, uv_scroll_offset);
 
         buffers.positions.push(left.to_array());
@@ -130,13 +141,15 @@ fn build_tube_mesh(
     camera_position_in_trail_space: Option<Vec3>,
     sides: u32,
     uv_scroll_offset: f32,
+    scratch_lengths: &mut Vec<f32>,
 ) -> TrailMeshBuffers {
     if points.len() < 2 {
         return TrailMeshBuffers::default();
     }
 
     let mut buffers = TrailMeshBuffers::default();
-    let normalized = normalized_lengths(points);
+    normalized_lengths_into(points, scratch_lengths);
+    let normalized = &*scratch_lengths;
     let total_length = crate::sampling::total_length(points);
     if total_length <= f32::EPSILON {
         return buffers;
@@ -155,11 +168,17 @@ fn build_tube_mesh(
         let tangent = tangent_at(points, index);
         let length_t = normalized[index];
         let age_t = (point.age_secs / trail.lifetime_secs.max(f32::EPSILON)).clamp(0.0, 1.0);
-        let radius = compute_width_with_fade(trail, length_t, age_t) * 0.5;
+        let radius = if let Some(w) = point.custom_width {
+            w * 0.5
+        } else {
+            compute_width_with_fade(trail, length_t, age_t) * 0.5
+        };
         if radius <= f32::EPSILON {
             continue;
         }
-        let color = compute_color_with_fade(trail, length_t, age_t);
+        let color = point
+            .custom_color
+            .unwrap_or_else(|| compute_color_with_fade(trail, length_t, age_t));
         let u = compute_u(trail, length_t, accumulated_length, uv_scroll_offset);
 
         let side = side_vector(trail, *point, tangent, camera_position_in_trail_space);
@@ -212,7 +231,7 @@ fn build_tube_mesh(
 }
 
 fn compute_width_with_fade(trail: &Trail, length_t: f32, age_t: f32) -> f32 {
-    let base = trail.style.evaluate_width(length_t);
+    let base = trail.style.evaluate_width(length_t, age_t);
     match trail.style.fade_mode {
         TrailFadeMode::Alpha => base,
         TrailFadeMode::Width | TrailFadeMode::Both => {

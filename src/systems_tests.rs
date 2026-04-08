@@ -50,6 +50,8 @@ fn run_tick(app: &mut App) {
     app.world_mut()
         .resource_mut::<Time>()
         .advance_by(Duration::from_millis(16));
+    // Propagate GlobalTransform before trail systems read it.
+    app.world_mut().run_schedule(PostUpdate);
     app.world_mut().run_schedule(Tick);
 }
 
