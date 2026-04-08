@@ -1,6 +1,20 @@
+//! Magic Trail + GPU Particles
+//!
+//! Two animated sources combining `saddle-rendering-trail` with `bevy_hanabi`:
+//! - **Left**: magic orb — spark particles oriented along velocity, HDR colors
+//!   with bloom, size/color gradients over lifetime
+//! - **Right**: sword swing — ember shower with gravity, drag, and warm-to-cool
+//!   color gradient
+//!
+//! Demonstrates that the trail system composes cleanly with GPU particle
+//! effects attached as children of the same moving entity.
+
 use saddle_rendering_trail_example_common as common;
 
-use bevy::prelude::*;
+use bevy::{
+    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
+    render::view::Hdr,
+};
 use bevy_hanabi::prelude::*;
 use saddle_rendering_trail::{
     Trail, TrailColorKey, TrailDiagnostics, TrailEmitterMode, TrailFadeMode, TrailGradient,
@@ -35,16 +49,34 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut effects: ResMut<Assets<EffectAsset>>,
 ) {
-    common::spawn_stage(&mut commands, &mut meshes, &mut materials);
+    common::spawn_stage_scene(&mut commands, &mut meshes, &mut materials);
+
+    // HDR camera with bloom for particle glow.
+    commands.spawn((
+        Name::new("Camera"),
+        Camera3d::default(),
+        Camera {
+            clear_color: Color::srgb(0.02, 0.02, 0.04).into(),
+            ..default()
+        },
+        Hdr,
+        Tonemapping::None,
+        Bloom {
+            intensity: 0.3,
+            ..default()
+        },
+        Transform::from_xyz(0.0, 5.0, 14.0).looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
+    ));
+
     common::spawn_overlay(
         &mut commands,
         "Magic Trail + GPU Particles",
         "Left: magic orb (trail + spark particles)\n\
          Right: sword swing (trail + ember particles)\n\
-         Combines saddle-rendering-trail with bevy_hanabi.",
+         HDR camera with bloom for particle glow.",
     );
 
-    // --- Magic orb: trail + glowing particles ---
+    // --- Magic orb: trail + glowing spark particles ---
     let orb_spark_effect = effects.add(magic_orb_effect());
     commands
         .spawn((
@@ -64,7 +96,7 @@ fn setup(
                     ]),
                     alpha_over_length: TrailScalarCurve::linear(0.0, 1.0),
                     material: TrailMaterial {
-                        emissive: LinearRgba::rgb(0.4, 0.15, 0.9),
+                        emissive: LinearRgba::rgb(0.8, 0.3, 1.8),
                         ..default()
                     },
                     ..default()
@@ -108,7 +140,7 @@ fn setup(
                     ]),
                     alpha_over_length: TrailScalarCurve::linear(0.0, 1.0),
                     material: TrailMaterial {
-                        emissive: LinearRgba::rgb(1.0, 0.3, 0.05),
+                        emissive: LinearRgba::rgb(2.0, 0.6, 0.1),
                         ..default()
                     },
                     ..default()
@@ -128,7 +160,7 @@ fn setup(
             ));
         });
 
-    // Overlay for diagnostics
+    // Diagnostics overlay
     commands.spawn((
         Name::new("Diagnostics Overlay"),
         OverlayText,
@@ -150,66 +182,116 @@ fn setup(
     ));
 }
 
+/// Sparkle particles for the magic orb — elongated along velocity, HDR colors
+/// with bloom, shrinking over lifetime, brief random burst.
 fn magic_orb_effect() -> EffectAsset {
     let writer = ExprWriter::new();
+
     let age = writer.lit(0.0).expr();
-    let lifetime = writer.lit(0.8).expr();
-    let drag = writer.lit(2.0).expr();
+    let lifetime = writer.lit(0.4).uniform(writer.lit(0.8)).expr();
+    let drag = writer.lit(3.0).expr();
+
     let init_pos = SetPositionSphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        radius: writer.lit(0.25).expr(),
+        radius: writer.lit(0.2).expr(),
         dimension: ShapeDimension::Volume,
     };
     let init_vel = SetVelocitySphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        speed: writer.lit(2.5).expr(),
+        speed: writer.lit(2.0).uniform(writer.lit(4.0)).expr(),
     };
 
-    EffectAsset::new(512, SpawnerSettings::rate(150.0.into()), writer.finish())
-        .with_name("magic_orb_sparks")
-        .init(init_pos)
-        .init(init_vel)
-        .init(SetAttributeModifier::new(Attribute::AGE, age))
-        .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
-        .update(LinearDragModifier::new(drag))
-        .render(SetColorModifier::new(CpuValue::Uniform((
-            Vec4::new(0.5, 0.2, 1.0, 1.0),
-            Vec4::new(0.9, 0.6, 1.0, 1.0),
-        ))))
-        .render(SetSizeModifier {
-            size: CpuValue::Uniform((Vec3::splat(0.06), Vec3::splat(0.14))),
-        })
+    // HDR color gradient: bright white core → vivid purple → fade out
+    let mut color_gradient = bevy_hanabi::Gradient::new();
+    color_gradient.add_key(0.0, Vec4::new(3.0, 2.5, 4.0, 1.0));
+    color_gradient.add_key(0.3, Vec4::new(1.5, 0.5, 3.0, 1.0));
+    color_gradient.add_key(0.7, Vec4::new(0.6, 0.2, 1.5, 0.8));
+    color_gradient.add_key(1.0, Vec4::new(0.3, 0.1, 0.8, 0.0));
+
+    // Size gradient: elongated spark shape, shrinking to nothing
+    let mut size_gradient = bevy_hanabi::Gradient::new();
+    size_gradient.add_key(0.0, Vec3::new(0.12, 0.03, 1.0));
+    size_gradient.add_key(0.5, Vec3::new(0.08, 0.02, 1.0));
+    size_gradient.add_key(1.0, Vec3::splat(0.0));
+
+    EffectAsset::new(
+        1024,
+        SpawnerSettings::rate(200.0.into()),
+        writer.finish(),
+    )
+    .with_name("magic_orb_sparks")
+    .init(init_pos)
+    .init(init_vel)
+    .init(SetAttributeModifier::new(Attribute::AGE, age))
+    .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
+    .update(LinearDragModifier::new(drag))
+    .render(ColorOverLifetimeModifier {
+        gradient: color_gradient,
+        blend: ColorBlendMode::Overwrite,
+        mask: ColorBlendMask::RGBA,
+    })
+    .render(SizeOverLifetimeModifier {
+        gradient: size_gradient,
+        screen_space_size: false,
+    })
+    .render(OrientModifier::new(OrientMode::AlongVelocity))
 }
 
+/// Ember shower for the sword — warm-to-cool gradient, gravity pull,
+/// drag for deceleration, oriented sparks falling down.
 fn sword_ember_effect() -> EffectAsset {
     let writer = ExprWriter::new();
+
     let age = writer.lit(0.0).expr();
-    let lifetime = writer.lit(0.6).expr();
+    let lifetime = writer.lit(0.3).uniform(writer.lit(0.7)).expr();
+
     let init_pos = SetPositionSphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        radius: writer.lit(0.4).expr(),
+        radius: writer.lit(0.35).expr(),
         dimension: ShapeDimension::Surface,
     };
     let init_vel = SetVelocitySphereModifier {
         center: writer.lit(Vec3::ZERO).expr(),
-        speed: writer.lit(3.5).expr(),
+        speed: writer.lit(2.0).uniform(writer.lit(5.0)).expr(),
     };
-    let gravity = AccelModifier::new(writer.lit(Vec3::new(0.0, -5.0, 0.0)).expr());
+    let gravity = AccelModifier::new(writer.lit(Vec3::new(0.0, -6.0, 0.0)).expr());
+    let drag = writer.lit(2.0).expr();
 
-    EffectAsset::new(1024, SpawnerSettings::rate(250.0.into()), writer.finish())
-        .with_name("sword_embers")
-        .init(init_pos)
-        .init(init_vel)
-        .init(SetAttributeModifier::new(Attribute::AGE, age))
-        .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
-        .update(gravity)
-        .render(SetColorModifier::new(CpuValue::Uniform((
-            Vec4::new(1.0, 0.4, 0.05, 1.0),
-            Vec4::new(1.0, 0.8, 0.3, 1.0),
-        ))))
-        .render(SetSizeModifier {
-            size: CpuValue::Uniform((Vec3::splat(0.04), Vec3::splat(0.10))),
-        })
+    // HDR color gradient: bright yellow-white core → orange → red → fade
+    let mut color_gradient = bevy_hanabi::Gradient::new();
+    color_gradient.add_key(0.0, Vec4::new(4.0, 3.0, 1.5, 1.0));
+    color_gradient.add_key(0.2, Vec4::new(3.0, 1.5, 0.3, 1.0));
+    color_gradient.add_key(0.6, Vec4::new(2.0, 0.4, 0.05, 0.9));
+    color_gradient.add_key(1.0, Vec4::new(0.5, 0.1, 0.02, 0.0));
+
+    // Size gradient: elongated ember, shrinking
+    let mut size_gradient = bevy_hanabi::Gradient::new();
+    size_gradient.add_key(0.0, Vec3::new(0.10, 0.025, 1.0));
+    size_gradient.add_key(0.4, Vec3::new(0.06, 0.015, 1.0));
+    size_gradient.add_key(1.0, Vec3::splat(0.0));
+
+    EffectAsset::new(
+        2048,
+        SpawnerSettings::rate(300.0.into()),
+        writer.finish(),
+    )
+    .with_name("sword_embers")
+    .init(init_pos)
+    .init(init_vel)
+    .init(SetAttributeModifier::new(Attribute::AGE, age))
+    .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
+    .update(gravity)
+    .update(LinearDragModifier::new(drag))
+    .render(ColorOverLifetimeModifier {
+        gradient: color_gradient,
+        blend: ColorBlendMode::Overwrite,
+        mask: ColorBlendMask::RGBA,
+    })
+    .render(SizeOverLifetimeModifier {
+        gradient: size_gradient,
+        screen_space_size: false,
+    })
+    .render(OrientModifier::new(OrientMode::AlongVelocity))
 }
 
 fn animate(
