@@ -12,10 +12,7 @@ fn main() {
     common::install_auto_exit(&mut app);
     app.add_systems(Startup, setup);
     app.add_systems(Update, animate);
-    app.add_systems(
-        Update,
-        wave_modifier.in_set(TrailSystems::Modify),
-    );
+    app.add_systems(Update, wave_modifier.in_set(TrailSystems::Modify));
     app.run();
 }
 

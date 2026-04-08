@@ -214,27 +214,23 @@ fn magic_orb_effect() -> EffectAsset {
     size_gradient.add_key(0.5, Vec3::new(0.08, 0.02, 1.0));
     size_gradient.add_key(1.0, Vec3::splat(0.0));
 
-    EffectAsset::new(
-        1024,
-        SpawnerSettings::rate(200.0.into()),
-        writer.finish(),
-    )
-    .with_name("magic_orb_sparks")
-    .init(init_pos)
-    .init(init_vel)
-    .init(SetAttributeModifier::new(Attribute::AGE, age))
-    .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
-    .update(LinearDragModifier::new(drag))
-    .render(ColorOverLifetimeModifier {
-        gradient: color_gradient,
-        blend: ColorBlendMode::Overwrite,
-        mask: ColorBlendMask::RGBA,
-    })
-    .render(SizeOverLifetimeModifier {
-        gradient: size_gradient,
-        screen_space_size: false,
-    })
-    .render(OrientModifier::new(OrientMode::AlongVelocity))
+    EffectAsset::new(1024, SpawnerSettings::rate(200.0.into()), writer.finish())
+        .with_name("magic_orb_sparks")
+        .init(init_pos)
+        .init(init_vel)
+        .init(SetAttributeModifier::new(Attribute::AGE, age))
+        .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
+        .update(LinearDragModifier::new(drag))
+        .render(ColorOverLifetimeModifier {
+            gradient: color_gradient,
+            blend: ColorBlendMode::Overwrite,
+            mask: ColorBlendMask::RGBA,
+        })
+        .render(SizeOverLifetimeModifier {
+            gradient: size_gradient,
+            screen_space_size: false,
+        })
+        .render(OrientModifier::new(OrientMode::AlongVelocity))
 }
 
 /// Ember shower for the sword — warm-to-cool gradient, gravity pull,
@@ -270,28 +266,24 @@ fn sword_ember_effect() -> EffectAsset {
     size_gradient.add_key(0.4, Vec3::new(0.06, 0.015, 1.0));
     size_gradient.add_key(1.0, Vec3::splat(0.0));
 
-    EffectAsset::new(
-        2048,
-        SpawnerSettings::rate(300.0.into()),
-        writer.finish(),
-    )
-    .with_name("sword_embers")
-    .init(init_pos)
-    .init(init_vel)
-    .init(SetAttributeModifier::new(Attribute::AGE, age))
-    .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
-    .update(gravity)
-    .update(LinearDragModifier::new(drag))
-    .render(ColorOverLifetimeModifier {
-        gradient: color_gradient,
-        blend: ColorBlendMode::Overwrite,
-        mask: ColorBlendMask::RGBA,
-    })
-    .render(SizeOverLifetimeModifier {
-        gradient: size_gradient,
-        screen_space_size: false,
-    })
-    .render(OrientModifier::new(OrientMode::AlongVelocity))
+    EffectAsset::new(2048, SpawnerSettings::rate(300.0.into()), writer.finish())
+        .with_name("sword_embers")
+        .init(init_pos)
+        .init(init_vel)
+        .init(SetAttributeModifier::new(Attribute::AGE, age))
+        .init(SetAttributeModifier::new(Attribute::LIFETIME, lifetime))
+        .update(gravity)
+        .update(LinearDragModifier::new(drag))
+        .render(ColorOverLifetimeModifier {
+            gradient: color_gradient,
+            blend: ColorBlendMode::Overwrite,
+            mask: ColorBlendMask::RGBA,
+        })
+        .render(SizeOverLifetimeModifier {
+            gradient: size_gradient,
+            screen_space_size: false,
+        })
+        .render(OrientModifier::new(OrientMode::AlongVelocity))
 }
 
 fn animate(

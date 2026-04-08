@@ -32,14 +32,12 @@ fn main() {
     app.add_plugins(TrailPlugin::default());
 
     // Register the extended material pipeline.
-    app.add_plugins(
-        MaterialPlugin::<ExtendedMaterial<StandardMaterial, EnergyTrailExtension>>::default(),
-    );
-    app.add_plugins(
-        TrailMaterialPlugin::<ExtendedMaterial<StandardMaterial, EnergyTrailExtension>>::new(
-            Update,
-        ),
-    );
+    app.add_plugins(MaterialPlugin::<
+        ExtendedMaterial<StandardMaterial, EnergyTrailExtension>,
+    >::default());
+    app.add_plugins(TrailMaterialPlugin::<
+        ExtendedMaterial<StandardMaterial, EnergyTrailExtension>,
+    >::new(Update));
 
     common::install_auto_exit(&mut app);
     app.add_systems(Startup, setup);
@@ -92,9 +90,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut energy_materials: ResMut<
-        Assets<ExtendedMaterial<StandardMaterial, EnergyTrailExtension>>,
-    >,
+    mut energy_materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, EnergyTrailExtension>>>,
     _asset_server: Res<AssetServer>,
 ) {
     common::spawn_stage_scene(&mut commands, &mut meshes, &mut materials);

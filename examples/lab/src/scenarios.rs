@@ -5,18 +5,20 @@ use saddle_bevy_e2e::{
     scenario::Scenario,
 };
 use saddle_rendering_trail::{
-    Trail, TrailDiagnostics, TrailEmitterMode, TrailFadeMode, TrailGradient, TrailColorKey,
+    Trail, TrailColorKey, TrailDiagnostics, TrailEmitterMode, TrailFadeMode, TrailGradient,
     TrailHistory, TrailLod, TrailMeshMode, TrailOrientation, TrailScalarCurve, TrailSpace,
-    TrailStyleOverride, TrailStyle, TrailViewSource,
+    TrailStyle, TrailStyleOverride, TrailViewSource,
 };
-
-#[derive(bevy::prelude::Resource)]
-struct DrawingTrailSnapshot(usize);
 
 use crate::LabEntities;
 
 #[derive(Resource)]
 struct RebuildSnapshot(u64);
+
+#[derive(Resource, Clone, Copy)]
+struct LodSnapshot {
+    history_len: usize,
+}
 
 pub fn scenario_by_name(name: &str) -> Option<Scenario> {
     match name {
@@ -217,18 +219,26 @@ fn build_tube_mesh_mode() -> Scenario {
         .then(Action::WaitFrames(45))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(-4.4, 2.6, 6.8), Vec3::new(-4.2, 1.8, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(-4.4, 2.6, 6.8),
+                Vec3::new(-4.2, 1.8, 0.0),
+            );
             if let Some(mut trail) = world.get_mut::<Trail>(lab.billboard) {
                 trail.mesh_mode = TrailMeshMode::Tube { sides: 6 };
             }
         })))
         .then(Action::WaitFrames(30))
-        .then(assertions::custom("billboard source stores tube mesh mode", |world| {
-            let lab = *world.resource::<LabEntities>();
-            world
-                .get::<Trail>(lab.billboard)
-                .is_some_and(|trail| matches!(trail.mesh_mode, TrailMeshMode::Tube { sides: 6 }))
-        }))
+        .then(assertions::custom(
+            "billboard source stores tube mesh mode",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world.get::<Trail>(lab.billboard).is_some_and(|trail| {
+                    matches!(trail.mesh_mode, TrailMeshMode::Tube { sides: 6 })
+                })
+            },
+        ))
         .then(assertions::resource_satisfies::<TrailDiagnostics>(
             "tube trail produces mesh rebuilds",
             |diagnostics| diagnostics.total_mesh_rebuilds > 0 && diagnostics.active_points >= 6,
@@ -247,18 +257,26 @@ fn build_fade_modes() -> Scenario {
         .then(Action::WaitFrames(45))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(2.8, 3.2, 6.5), Vec3::new(0.0, 1.6, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(2.8, 3.2, 6.5),
+                Vec3::new(0.0, 1.6, 0.0),
+            );
             if let Some(mut trail) = world.get_mut::<Trail>(lab.locked) {
                 trail.style.fade_mode = TrailFadeMode::Width;
             }
         })))
         .then(Action::WaitFrames(20))
-        .then(assertions::custom("locked trail uses Width fade mode", |world| {
-            let lab = *world.resource::<LabEntities>();
-            world
-                .get::<Trail>(lab.locked)
-                .is_some_and(|trail| trail.style.fade_mode == TrailFadeMode::Width)
-        }))
+        .then(assertions::custom(
+            "locked trail uses Width fade mode",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world
+                    .get::<Trail>(lab.locked)
+                    .is_some_and(|trail| trail.style.fade_mode == TrailFadeMode::Width)
+            },
+        ))
         .then(Action::Screenshot("trail_fade_width".into()))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
@@ -267,12 +285,15 @@ fn build_fade_modes() -> Scenario {
             }
         })))
         .then(Action::WaitFrames(20))
-        .then(assertions::custom("locked trail uses Both fade mode", |world| {
-            let lab = *world.resource::<LabEntities>();
-            world
-                .get::<Trail>(lab.locked)
-                .is_some_and(|trail| trail.style.fade_mode == TrailFadeMode::Both)
-        }))
+        .then(assertions::custom(
+            "locked trail uses Both fade mode",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world
+                    .get::<Trail>(lab.locked)
+                    .is_some_and(|trail| trail.style.fade_mode == TrailFadeMode::Both)
+            },
+        ))
         .then(Action::Screenshot("trail_fade_both".into()))
         .then(assertions::log_summary("trail_fade_modes summary"))
         .build()
@@ -292,15 +313,23 @@ fn build_melee_swipe() -> Scenario {
             if let Some(mut trail) = world.get_mut::<Trail>(lab.locked) {
                 trail.style.base_width = 1.4;
             }
-            focus_camera(world, lab.camera, Vec3::new(3.4, 3.8, 7.2), Vec3::new(0.0, 1.6, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(3.4, 3.8, 7.2),
+                Vec3::new(0.0, 1.6, 0.0),
+            );
         })))
         .then(Action::WaitFrames(15))
-        .then(assertions::custom("locked (swipe) source keeps transform-locked orientation", |world| {
-            let entity = world.resource::<LabEntities>().locked;
-            world
-                .get::<Trail>(entity)
-                .is_some_and(|trail| matches!(trail.orientation, TrailOrientation::TransformLocked { .. }))
-        }))
+        .then(assertions::custom(
+            "locked (swipe) source keeps transform-locked orientation",
+            |world| {
+                let entity = world.resource::<LabEntities>().locked;
+                world.get::<Trail>(entity).is_some_and(|trail| {
+                    matches!(trail.orientation, TrailOrientation::TransformLocked { .. })
+                })
+            },
+        ))
         .then(assertions::resource_satisfies::<TrailDiagnostics>(
             "swipe trail produces active geometry",
             |diagnostics| diagnostics.active_points >= 4 && diagnostics.visible_trails >= 1,
@@ -310,7 +339,12 @@ fn build_melee_swipe() -> Scenario {
         // Side angle to show the arc depth
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(7.0, 3.0, 3.5), Vec3::new(0.0, 1.6, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(7.0, 3.0, 3.5),
+                Vec3::new(0.0, 1.6, 0.0),
+            );
         })))
         .then(Action::WaitFrames(12))
         .then(Action::Screenshot("melee_swipe_side".into()))
@@ -327,17 +361,23 @@ fn build_drawing_trail() -> Scenario {
              over time while the carrier is in motion.",
         )
         .then(Action::WaitFrames(30))
-        .then(assertions::custom("hover source uses local trail space", |world| {
-            let entity = world.resource::<LabEntities>().hover;
-            world
-                .get::<Trail>(entity)
-                .is_some_and(|trail| trail.space == TrailSpace::Local)
-        }))
+        .then(assertions::custom(
+            "hover source uses local trail space",
+            |world| {
+                let entity = world.resource::<LabEntities>().hover;
+                world
+                    .get::<Trail>(entity)
+                    .is_some_and(|trail| trail.space == TrailSpace::Local)
+            },
+        ))
         .then(Action::Custom(Box::new(|world: &mut World| {
-            let before = world.resource::<TrailDiagnostics>().active_points;
-            world.insert_resource(DrawingTrailSnapshot(before));
             let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(5.8, 4.2, 9.6), Vec3::new(4.0, 1.6, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(5.8, 4.2, 9.6),
+                Vec3::new(4.0, 1.6, 0.0),
+            );
         })))
         .then(Action::Screenshot("drawing_trail_start".into()))
         .then(Action::WaitFrames(1))
@@ -346,18 +386,18 @@ fn build_drawing_trail() -> Scenario {
             "active point count remains non-zero during drawing",
             |diagnostics| diagnostics.active_points >= 4,
         ))
-        .then(assertions::custom("hover trail still running after 60 frames", |world| {
-            let entity = world.resource::<LabEntities>().hover;
-            world.get_entity(entity).is_ok()
-                && world
-                    .get::<Trail>(entity)
-                    .is_some_and(|trail| trail.space == TrailSpace::Local)
-        }))
+        .then(assertions::custom(
+            "hover trail still running after 60 frames",
+            |world| {
+                let entity = world.resource::<LabEntities>().hover;
+                world.get_entity(entity).is_ok()
+                    && world
+                        .get::<Trail>(entity)
+                        .is_some_and(|trail| trail.space == TrailSpace::Local)
+            },
+        ))
         .then(Action::Screenshot("drawing_trail_accumulated".into()))
         .then(Action::WaitFrames(1))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            world.remove_resource::<DrawingTrailSnapshot>();
-        })))
         .then(assertions::log_summary("trail_drawing_trail summary"))
         .build()
 }
@@ -372,24 +412,35 @@ fn build_projectile_contrail() -> Scenario {
         .then(Action::WaitFrames(50))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(-4.4, 2.6, 6.8), Vec3::new(-4.2, 1.8, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(-4.4, 2.6, 6.8),
+                Vec3::new(-4.2, 1.8, 0.0),
+            );
             let rebuilds = world.resource::<TrailDiagnostics>().total_mesh_rebuilds;
             world.insert_resource(RebuildSnapshot(rebuilds));
         })))
         .then(Action::WaitFrames(30))
-        .then(assertions::custom("billboard source uses AlwaysOn emitter mode", |world| {
-            let entity = world.resource::<LabEntities>().billboard;
-            world
-                .get::<Trail>(entity)
-                .is_some_and(|trail| matches!(trail.emitter_mode, TrailEmitterMode::Always))
-        }))
-        .then(assertions::custom("contrail accumulated new mesh rebuilds", |world| {
-            let before = world
-                .get_resource::<RebuildSnapshot>()
-                .expect("rebuild snapshot should exist")
-                .0;
-            world.resource::<TrailDiagnostics>().total_mesh_rebuilds > before
-        }))
+        .then(assertions::custom(
+            "billboard source uses AlwaysOn emitter mode",
+            |world| {
+                let entity = world.resource::<LabEntities>().billboard;
+                world
+                    .get::<Trail>(entity)
+                    .is_some_and(|trail| matches!(trail.emitter_mode, TrailEmitterMode::Always))
+            },
+        ))
+        .then(assertions::custom(
+            "contrail accumulated new mesh rebuilds",
+            |world| {
+                let before = world
+                    .get_resource::<RebuildSnapshot>()
+                    .expect("rebuild snapshot should exist")
+                    .0;
+                world.resource::<TrailDiagnostics>().total_mesh_rebuilds > before
+            },
+        ))
         .then(assertions::resource_satisfies::<TrailDiagnostics>(
             "contrail has active geometry points",
             |diagnostics| diagnostics.active_points >= 8,
@@ -418,26 +469,65 @@ fn build_lod() -> Scenario {
                 min_points_fraction: 0.25,
             });
             // Move camera close first to establish baseline.
-            focus_camera(world, lab.camera, Vec3::new(-4.4, 2.6, 6.8), Vec3::new(-4.2, 1.8, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(-4.4, 2.6, 6.8),
+                Vec3::new(-4.2, 1.8, 0.0),
+            );
         })))
         .then(Action::WaitFrames(30))
-        .then(assertions::custom("TrailLod component is attached to billboard source", |world| {
+        .then(assertions::custom(
+            "TrailLod component is attached to billboard source",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world.get::<TrailLod>(lab.billboard).is_some()
+            },
+        ))
+        .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            world.get::<TrailLod>(lab.billboard).is_some()
-        }))
+            let history_len = world
+                .get::<TrailHistory>(lab.billboard)
+                .map(|history| history.len())
+                .unwrap_or(0);
+            world.insert_resource(LodSnapshot { history_len });
+        })))
         .then(Action::Screenshot("trail_lod_near".into()))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
             // Move camera very far away so LOD kicks in.
-            focus_camera(world, lab.camera, Vec3::new(-4.4, 2.6, 40.0), Vec3::new(-4.2, 1.8, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(-4.4, 2.6, 40.0),
+                Vec3::new(-4.2, 1.8, 0.0),
+            );
         })))
         .then(Action::WaitFrames(30))
-        .then(assertions::custom("trail system remains active with LOD attached", |world| {
-            let diagnostics = world.resource::<TrailDiagnostics>();
-            diagnostics.runtime_active && diagnostics.active_sources >= 4
-        }))
-        .then(inspect::log_resource::<TrailDiagnostics>("trail_lod diagnostics"))
+        .then(assertions::custom(
+            "trail LOD trims the billboard trail at distance",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                let snapshot = world.resource::<LodSnapshot>();
+                world
+                    .get::<TrailHistory>(lab.billboard)
+                    .is_some_and(|history| history.len() < snapshot.history_len)
+            },
+        ))
+        .then(assertions::custom(
+            "trail system remains active with LOD attached",
+            |world| {
+                let diagnostics = world.resource::<TrailDiagnostics>();
+                diagnostics.runtime_active && diagnostics.active_sources >= 4
+            },
+        ))
+        .then(inspect::log_resource::<TrailDiagnostics>(
+            "trail_lod diagnostics",
+        ))
         .then(Action::Screenshot("trail_lod_far".into()))
+        .then(Action::Custom(Box::new(|world: &mut World| {
+            world.remove_resource::<LodSnapshot>();
+        })))
         .then(assertions::log_summary("trail_lod summary"))
         .build()
 }
@@ -449,23 +539,34 @@ fn build_history_access() -> Scenario {
              contains the expected point data.",
         )
         .then(Action::WaitFrames(90))
-        .then(assertions::custom("billboard source has TrailHistory component", |world| {
-            let lab = *world.resource::<LabEntities>();
-            world.get::<TrailHistory>(lab.billboard).is_some()
-        }))
-        .then(assertions::custom("TrailHistory has points after sampling", |world| {
-            let lab = *world.resource::<LabEntities>();
-            world
-                .get::<TrailHistory>(lab.billboard)
-                .is_some_and(|history| history.len() > 0 && history.total_length() > 0.0)
-        }))
-        .then(assertions::custom("TrailHistory normalized_lengths parallel to points", |world| {
-            let lab = *world.resource::<LabEntities>();
-            world.get::<TrailHistory>(lab.billboard).is_some_and(|history| {
-                let lengths = history.normalized_lengths();
-                lengths.len() == history.len()
-            })
-        }))
+        .then(assertions::custom(
+            "billboard source has TrailHistory component",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world.get::<TrailHistory>(lab.billboard).is_some()
+            },
+        ))
+        .then(assertions::custom(
+            "TrailHistory has points after sampling",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world
+                    .get::<TrailHistory>(lab.billboard)
+                    .is_some_and(|history| history.len() > 0 && history.total_length() > 0.0)
+            },
+        ))
+        .then(assertions::custom(
+            "TrailHistory normalized_lengths parallel to points",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world
+                    .get::<TrailHistory>(lab.billboard)
+                    .is_some_and(|history| {
+                        let lengths = history.normalized_lengths();
+                        lengths.len() == history.len()
+                    })
+            },
+        ))
         .then(Action::Screenshot("trail_history_access".into()))
         .then(assertions::log_summary("trail_history_access summary"))
         .build()
@@ -491,10 +592,13 @@ fn build_point_mutation() -> Scenario {
             }
         })))
         .then(Action::WaitFrames(6))
-        .then(assertions::custom("point mutation triggered mesh rebuild", |world| {
-            let before = world.resource::<RebuildSnapshot>().0;
-            world.resource::<TrailDiagnostics>().total_mesh_rebuilds > before
-        }))
+        .then(assertions::custom(
+            "point mutation triggered mesh rebuild",
+            |world| {
+                let before = world.resource::<RebuildSnapshot>().0;
+                world.resource::<TrailDiagnostics>().total_mesh_rebuilds > before
+            },
+        ))
         .then(Action::Screenshot("trail_point_mutation".into()))
         .then(Action::Custom(Box::new(|world: &mut World| {
             world.remove_resource::<RebuildSnapshot>();
@@ -512,7 +616,12 @@ fn build_age_curves() -> Scenario {
         .then(Action::WaitFrames(45))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(2.8, 3.2, 6.5), Vec3::new(0.0, 1.6, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(2.8, 3.2, 6.5),
+                Vec3::new(0.0, 1.6, 0.0),
+            );
             if let Some(mut trail) = world.get_mut::<Trail>(lab.locked) {
                 trail.style.width_over_age = TrailScalarCurve::linear(1.0, 0.0);
                 trail.style.color_over_age = TrailGradient::new([
@@ -527,10 +636,13 @@ fn build_age_curves() -> Scenario {
             world.insert_resource(RebuildSnapshot(rebuilds));
         })))
         .then(Action::WaitFrames(10))
-        .then(assertions::custom("age curves trigger continuous rebuilds", |world| {
-            let before = world.resource::<RebuildSnapshot>().0;
-            world.resource::<TrailDiagnostics>().total_mesh_rebuilds > before
-        }))
+        .then(assertions::custom(
+            "age curves trigger continuous rebuilds",
+            |world| {
+                let before = world.resource::<RebuildSnapshot>().0;
+                world.resource::<TrailDiagnostics>().total_mesh_rebuilds > before
+            },
+        ))
         .then(Action::Screenshot("trail_age_curves".into()))
         .then(Action::Custom(Box::new(|world: &mut World| {
             world.remove_resource::<RebuildSnapshot>();
@@ -548,25 +660,35 @@ fn build_style_override() -> Scenario {
         .then(Action::WaitFrames(45))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(2.8, 3.2, 6.5), Vec3::new(0.0, 1.6, 0.0));
+            focus_camera(
+                world,
+                lab.camera,
+                Vec3::new(2.8, 3.2, 6.5),
+                Vec3::new(0.0, 1.6, 0.0),
+            );
         })))
         .then(Action::Screenshot("trail_style_override_before".into()))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            world.entity_mut(lab.locked).insert(TrailStyleOverride(TrailStyle {
-                base_width: 2.0,
-                color_over_length: TrailGradient::new([
-                    TrailColorKey::new(0.0, Color::srgb(1.0, 0.0, 0.0)),
-                    TrailColorKey::new(1.0, Color::srgb(1.0, 1.0, 0.0)),
-                ]),
-                ..default()
-            }));
+            world
+                .entity_mut(lab.locked)
+                .insert(TrailStyleOverride(TrailStyle {
+                    base_width: 2.0,
+                    color_over_length: TrailGradient::new([
+                        TrailColorKey::new(0.0, Color::srgb(1.0, 0.0, 0.0)),
+                        TrailColorKey::new(1.0, Color::srgb(1.0, 1.0, 0.0)),
+                    ]),
+                    ..default()
+                }));
         })))
         .then(Action::WaitFrames(30))
-        .then(assertions::custom("TrailStyleOverride is attached", |world| {
-            let lab = *world.resource::<LabEntities>();
-            world.get::<TrailStyleOverride>(lab.locked).is_some()
-        }))
+        .then(assertions::custom(
+            "TrailStyleOverride is attached",
+            |world| {
+                let lab = *world.resource::<LabEntities>();
+                world.get::<TrailStyleOverride>(lab.locked).is_some()
+            },
+        ))
         .then(Action::Screenshot("trail_style_override_active".into()))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();

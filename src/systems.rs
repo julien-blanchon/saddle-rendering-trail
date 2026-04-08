@@ -152,10 +152,9 @@ pub(crate) fn spawn_missing_instances(
             entity_commands.insert(no_cull);
         }
         let render_entity = entity_commands.id();
-        commands.entity(source).insert((
-            TrailSourceLink { render_entity },
-            TrailHistory::default(),
-        ));
+        commands
+            .entity(source)
+            .insert((TrailSourceLink { render_entity }, TrailHistory::default()));
     }
 }
 
@@ -173,12 +172,19 @@ pub(crate) fn sync_sources_and_sample(
 ) {
     let delta_secs = time.delta_secs();
 
-    for (source, trail, transform, global_transform, parent, link, custom_material, lod, style_override) in
-        &sources
+    for (
+        source,
+        trail,
+        transform,
+        global_transform,
+        parent,
+        link,
+        custom_material,
+        lod,
+        style_override,
+    ) in &sources
     {
-        let effective_style = style_override
-            .map(|o| &o.0)
-            .unwrap_or(&trail.style);
+        let effective_style = style_override.map(|o| &o.0).unwrap_or(&trail.style);
         let Ok((render_entity, mut instance, mut render_transform)) =
             instances.get_mut(link.render_entity)
         else {
@@ -187,8 +193,7 @@ pub(crate) fn sync_sources_and_sample(
         instance.source = source;
         instance.source_missing = false;
 
-        let config_changed =
-            instance.config != *trail || instance.config.style != *effective_style;
+        let config_changed = instance.config != *trail || instance.config.style != *effective_style;
         let no_cull_changed = instance.config.style.material.disable_frustum_culling
             != effective_style.material.disable_frustum_culling;
         let resolved_view_state = resolve_view_state(
@@ -217,9 +222,8 @@ pub(crate) fn sync_sources_and_sample(
             effective_style.animates_over_age() && !instance.history.points.is_empty();
 
         // UV scroll
-        let scroll_active =
-            effective_style.uv_scroll_speed.abs() > f32::EPSILON
-                && !instance.history.points.is_empty();
+        let scroll_active = effective_style.uv_scroll_speed.abs() > f32::EPSILON
+            && !instance.history.points.is_empty();
         if scroll_active {
             instance.uv_scroll_offset += effective_style.uv_scroll_speed * delta_secs;
         }
@@ -284,8 +288,7 @@ pub(crate) fn sync_sources_and_sample(
                 .unwrap_or_default(),
         };
 
-        let (_, world_rotation, world_position) =
-            global_transform.to_scale_rotation_translation();
+        let (_, world_rotation, world_position) = global_transform.to_scale_rotation_translation();
         let sample_position = match trail.space {
             TrailSpace::World => world_position,
             TrailSpace::Local => transform.translation,

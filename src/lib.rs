@@ -206,10 +206,7 @@ impl<M: Material> Plugin for TrailMaterialPlugin<M> {
 }
 
 fn sync_trail_material<M: Material>(
-    sources: Query<
-        (&TrailSourceLink, &TrailMaterial3d<M>),
-        Changed<TrailMaterial3d<M>>,
-    >,
+    sources: Query<(&TrailSourceLink, &TrailMaterial3d<M>), Changed<TrailMaterial3d<M>>>,
     mut commands: Commands,
 ) {
     for (link, material) in &sources {
