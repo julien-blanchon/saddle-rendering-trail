@@ -1,3 +1,5 @@
+mod support;
+
 use bevy::prelude::*;
 use saddle_bevy_e2e::{
     action::Action,
@@ -100,12 +102,8 @@ fn build_billboard() -> Scenario {
     Scenario::builder("trail_billboard")
         .description("Frame the billboard contrail, move the camera, and verify the billboard trail rebuilds for the new view.")
         .then(Action::WaitFrames(50))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(-4.4, 2.6, 6.8), Vec3::new(-4.2, 1.8, 0.0));
-            let rebuilds = world.resource::<TrailDiagnostics>().total_mesh_rebuilds;
-            world.insert_resource(RebuildSnapshot(rebuilds));
-        })))
+        .then(support::billboard_view_action())
+        .then(support::remember_rebuilds_action())
         .then(Action::WaitFrames(12))
         .then(assertions::custom("billboard source keeps billboard orientation", |world| {
             let entity = world.resource::<LabEntities>().billboard;
@@ -114,10 +112,7 @@ fn build_billboard() -> Scenario {
                 .is_some_and(|trail| matches!(trail.orientation, TrailOrientation::Billboard))
         }))
         .then(Action::Screenshot("trail_billboard_before".into()))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(-1.8, 4.0, 9.0), Vec3::new(-4.0, 1.6, 0.0));
-        })))
+        .then(support::focus_camera_action(Vec3::new(-1.8, 4.0, 9.0), Vec3::new(-4.0, 1.6, 0.0)))
         .then(Action::WaitFrames(12))
         .then(assertions::custom("camera motion triggers extra billboard rebuilds", |world| {
             let before = world
@@ -127,9 +122,7 @@ fn build_billboard() -> Scenario {
             world.resource::<TrailDiagnostics>().total_mesh_rebuilds > before
         }))
         .then(Action::Screenshot("trail_billboard_after".into()))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            world.remove_resource::<RebuildSnapshot>();
-        })))
+        .then(support::clear_rebuild_snapshot_action())
         .then(assertions::log_summary("trail_billboard summary"))
         .build()
 }
@@ -138,10 +131,7 @@ fn build_locked() -> Scenario {
     Scenario::builder("trail_locked")
         .description("Frame the transform-locked swipe trail and assert the source uses a non-billboard orientation.")
         .then(Action::WaitFrames(45))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            focus_camera(world, lab.camera, Vec3::new(2.8, 3.2, 6.5), Vec3::new(0.0, 1.6, 0.0));
-        })))
+        .then(support::locked_view_action())
         .then(Action::WaitFrames(10))
         .then(assertions::custom("locked source stays transform-locked", |world| {
             let entity = world.resource::<LabEntities>().locked;
@@ -202,14 +192,6 @@ fn build_view_source() -> Scenario {
         .build()
 }
 
-fn focus_camera(world: &mut World, camera: Entity, from: Vec3, look_at: Vec3) {
-    let mut camera_entity = world.entity_mut(camera);
-    let mut transform = camera_entity
-        .get_mut::<Transform>()
-        .expect("lab camera should exist");
-    *transform = Transform::from_translation(from).looking_at(look_at, Vec3::Y);
-}
-
 fn build_tube_mesh_mode() -> Scenario {
     Scenario::builder("trail_tube_mesh_mode")
         .description(
@@ -217,14 +199,9 @@ fn build_tube_mesh_mode() -> Scenario {
              stored on the component, and capture the cylindrical cross-section output.",
         )
         .then(Action::WaitFrames(45))
+        .then(support::billboard_view_action())
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(-4.4, 2.6, 6.8),
-                Vec3::new(-4.2, 1.8, 0.0),
-            );
             if let Some(mut trail) = world.get_mut::<Trail>(lab.billboard) {
                 trail.mesh_mode = TrailMeshMode::Tube { sides: 6 };
             }
@@ -255,14 +232,9 @@ fn build_fade_modes() -> Scenario {
              capturing a screenshot for each, and verify the mode is reflected on the component.",
         )
         .then(Action::WaitFrames(45))
+        .then(support::locked_view_action())
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(2.8, 3.2, 6.5),
-                Vec3::new(0.0, 1.6, 0.0),
-            );
             if let Some(mut trail) = world.get_mut::<Trail>(lab.locked) {
                 trail.style.fade_mode = TrailFadeMode::Width;
             }
@@ -307,19 +279,15 @@ fn build_melee_swipe() -> Scenario {
              the arc shape from two different camera angles.",
         )
         .then(Action::WaitFrames(45))
+        .then(support::locked_view_action())
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
             // Widen the locked trail slightly to make the swipe arc more visible.
             if let Some(mut trail) = world.get_mut::<Trail>(lab.locked) {
                 trail.style.base_width = 1.4;
             }
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(3.4, 3.8, 7.2),
-                Vec3::new(0.0, 1.6, 0.0),
-            );
         })))
+        .then(support::focus_camera_action(Vec3::new(3.4, 3.8, 7.2), Vec3::new(0.0, 1.6, 0.0)))
         .then(Action::WaitFrames(15))
         .then(assertions::custom(
             "locked (swipe) source keeps transform-locked orientation",
@@ -337,15 +305,7 @@ fn build_melee_swipe() -> Scenario {
         .then(Action::Screenshot("melee_swipe_front".into()))
         .then(Action::WaitFrames(1))
         // Side angle to show the arc depth
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(7.0, 3.0, 3.5),
-                Vec3::new(0.0, 1.6, 0.0),
-            );
-        })))
+        .then(support::side_swipe_view_action())
         .then(Action::WaitFrames(12))
         .then(Action::Screenshot("melee_swipe_side".into()))
         .then(Action::WaitFrames(1))
@@ -370,15 +330,7 @@ fn build_drawing_trail() -> Scenario {
                     .is_some_and(|trail| trail.space == TrailSpace::Local)
             },
         ))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(5.8, 4.2, 9.6),
-                Vec3::new(4.0, 1.6, 0.0),
-            );
-        })))
+        .then(support::hover_view_action())
         .then(Action::Screenshot("drawing_trail_start".into()))
         .then(Action::WaitFrames(1))
         .then(Action::WaitFrames(60))
@@ -410,17 +362,8 @@ fn build_projectile_contrail() -> Scenario {
              always-on emitter mode drives continuous geometry.",
         )
         .then(Action::WaitFrames(50))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(-4.4, 2.6, 6.8),
-                Vec3::new(-4.2, 1.8, 0.0),
-            );
-            let rebuilds = world.resource::<TrailDiagnostics>().total_mesh_rebuilds;
-            world.insert_resource(RebuildSnapshot(rebuilds));
-        })))
+        .then(support::billboard_view_action())
+        .then(support::remember_rebuilds_action())
         .then(Action::WaitFrames(30))
         .then(assertions::custom(
             "billboard source uses AlwaysOn emitter mode",
@@ -447,9 +390,7 @@ fn build_projectile_contrail() -> Scenario {
         ))
         .then(Action::Screenshot("projectile_contrail".into()))
         .then(Action::WaitFrames(1))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            world.remove_resource::<RebuildSnapshot>();
-        })))
+        .then(support::clear_rebuild_snapshot_action())
         .then(assertions::log_summary("trail_projectile_contrail summary"))
         .build()
 }
@@ -468,14 +409,8 @@ fn build_lod() -> Scenario {
                 end_distance: 20.0,
                 min_points_fraction: 0.25,
             });
-            // Move camera close first to establish baseline.
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(-4.4, 2.6, 6.8),
-                Vec3::new(-4.2, 1.8, 0.0),
-            );
         })))
+        .then(support::billboard_view_action())
         .then(Action::WaitFrames(30))
         .then(assertions::custom(
             "TrailLod component is attached to billboard source",
@@ -493,16 +428,7 @@ fn build_lod() -> Scenario {
             world.insert_resource(LodSnapshot { history_len });
         })))
         .then(Action::Screenshot("trail_lod_near".into()))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            // Move camera very far away so LOD kicks in.
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(-4.4, 2.6, 40.0),
-                Vec3::new(-4.2, 1.8, 0.0),
-            );
-        })))
+        .then(support::focus_camera_action(Vec3::new(-4.4, 2.6, 40.0), Vec3::new(-4.2, 1.8, 0.0)))
         .then(Action::WaitFrames(30))
         .then(assertions::custom(
             "trail LOD trims the billboard trail at distance",
@@ -578,10 +504,7 @@ fn build_point_mutation() -> Scenario {
             "Mutate trail points via TrailHistory::points_mut() and verify the mesh rebuilds.",
         )
         .then(Action::WaitFrames(90))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let rebuilds = world.resource::<TrailDiagnostics>().total_mesh_rebuilds;
-            world.insert_resource(RebuildSnapshot(rebuilds));
-        })))
+        .then(support::remember_rebuilds_action())
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
             if let Some(mut history) = world.get_mut::<TrailHistory>(lab.billboard) {
@@ -600,9 +523,7 @@ fn build_point_mutation() -> Scenario {
             },
         ))
         .then(Action::Screenshot("trail_point_mutation".into()))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            world.remove_resource::<RebuildSnapshot>();
-        })))
+        .then(support::clear_rebuild_snapshot_action())
         .then(assertions::log_summary("trail_point_mutation summary"))
         .build()
 }
@@ -614,14 +535,9 @@ fn build_age_curves() -> Scenario {
              is applied (mesh keeps rebuilding due to age animation).",
         )
         .then(Action::WaitFrames(45))
+        .then(support::locked_view_action())
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(2.8, 3.2, 6.5),
-                Vec3::new(0.0, 1.6, 0.0),
-            );
             if let Some(mut trail) = world.get_mut::<Trail>(lab.locked) {
                 trail.style.width_over_age = TrailScalarCurve::linear(1.0, 0.0);
                 trail.style.color_over_age = TrailGradient::new([
@@ -631,10 +547,7 @@ fn build_age_curves() -> Scenario {
             }
         })))
         .then(Action::WaitFrames(30))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let rebuilds = world.resource::<TrailDiagnostics>().total_mesh_rebuilds;
-            world.insert_resource(RebuildSnapshot(rebuilds));
-        })))
+        .then(support::remember_rebuilds_action())
         .then(Action::WaitFrames(10))
         .then(assertions::custom(
             "age curves trigger continuous rebuilds",
@@ -644,9 +557,7 @@ fn build_age_curves() -> Scenario {
             },
         ))
         .then(Action::Screenshot("trail_age_curves".into()))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            world.remove_resource::<RebuildSnapshot>();
-        })))
+        .then(support::clear_rebuild_snapshot_action())
         .then(assertions::log_summary("trail_age_curves summary"))
         .build()
 }
@@ -658,15 +569,7 @@ fn build_style_override() -> Scenario {
              appearance, then remove it and verify revert.",
         )
         .then(Action::WaitFrames(45))
-        .then(Action::Custom(Box::new(|world: &mut World| {
-            let lab = *world.resource::<LabEntities>();
-            focus_camera(
-                world,
-                lab.camera,
-                Vec3::new(2.8, 3.2, 6.5),
-                Vec3::new(0.0, 1.6, 0.0),
-            );
-        })))
+        .then(support::locked_view_action())
         .then(Action::Screenshot("trail_style_override_before".into()))
         .then(Action::Custom(Box::new(|world: &mut World| {
             let lab = *world.resource::<LabEntities>();
